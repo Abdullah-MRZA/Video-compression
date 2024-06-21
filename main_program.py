@@ -1,9 +1,16 @@
 import time
+import subprocess
+import logging
+import ffmpeg
 
-# Test initial commit
 
+def main() -> None:
+    # check if FFMPEG is installed
+    if not subprocess.Popen("ffmpeg"):  # doesn't work
+        logging.error("FFMPEG is not installed!!\nExiting..")
+        return
 
-def main() -> None: ...
+    file: ffmpeg.video = ffmpeg.SVTAV1()
 
 
 if __name__ == "__main__":
