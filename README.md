@@ -1,10 +1,12 @@
-# Video compression
+# Viduwu compwession
 
-A test for compressing videos efficiently
+A tewest fwor compwessin' wideos efficientwey
 
-Use many different codecs to compress videos in the optimal way
+Use manwy diffwent cwodecs to compwess wideos in the optimwal way
 
-## Planned Features
+## Pwanned weetures
 
-- Target quality (eg VMAF) instead of CRF guessing
-- Video splitting based on scene changes
+- Twawget qwality (eg VMAF) instead of CRF gwuessin'
+- Vwideo spwittin' bwased won swene changwes
+
+  UWU (●'◡'●)
