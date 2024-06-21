@@ -1,7 +1,8 @@
 import subprocess
 from dataclasses import dataclass
 
-type Video = SVTAV1 | SVTAV1PSY | H265 | H264
+
+type video = SVTAV1 | SVTAV1PSY | H265 | H264
 
 
 @dataclass()
