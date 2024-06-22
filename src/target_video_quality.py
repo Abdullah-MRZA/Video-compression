@@ -37,28 +37,48 @@ class Compress_video:
             print(f"RUNNING SECTION {i} OF SCENE")
             optimal_crf_value, heuristic_value_of_encode = (
                 Compress_video._compress_video_part(
-                    input_filename,
-                    f"{i}-{input_filename}",
-                    *scenes,
-                    heuristic_type,
-                    crop_black_bars,
-                    bit_depth,
-                    keyframe_placement,
-                    ffmpeg_codec_information,
+                    input_filename=input_filename,
+                    output_filename=f"{i}-{input_filename}",
+                    part_beginning=scenes[0],
+                    part_end=scenes[1],
+                    heuristic_type=heuristic_type,
+                    crop_black_bars=crop_black_bars,
+                    bit_depth=bit_depth,
+                    keyframe_placement=keyframe_placement,
+                    ffmpeg_codec_information=ffmpeg_codec_information,
+                    ffmpeg_path=ffmpeg_path,
                 )
             )
             video_data_crf_heuristic.append(
                 (optimal_crf_value, heuristic_value_of_encode)
             )
 
+        with graph_generate.linegraph_image(
+            filename_without_extension="Video_information"
+        ) as graph:
+            graph.add_linegraph(
+                x_data=list(range(len(video_data_crf_heuristic))),
+                y_data=[x[0] for x in video_data_crf_heuristic],
+                name="CRF",
+                mode="lines+markers",
+            )
+            graph.add_linegraph(
+                x_data=list(range(len(video_data_crf_heuristic))),
+                y_data=[x[1] for x in video_data_crf_heuristic],
+                name=heuristic_type.NAME,
+                mode="lines+markers",
+            )
+
         # graph = graph_generate.linegraph()
         # graph.add_linegraph()
 
-        if output_filename == None:
+        if output_filename is None:
             output_filename = f"RENDERED - {input_filename}"
+
         ffmpeg.concatenate_video_files(
             [f"{x}-test.mp4" for x in range(len(video_scenes))], output_filename
         )
+        [os.remove(f"{x}-test.mp4") for x in range(len(video_scenes))]
 
     @staticmethod
     def _compress_video_part(

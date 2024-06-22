@@ -8,6 +8,7 @@ type heuristic = VMAF
 @dataclass()
 class VMAF:
     target_score: int
+    NAME: str = "VMAF"
 
     def overall(
         self,
@@ -114,14 +115,15 @@ class VMAF:
 
 
 def crop_black_bars(source_video_path: str) -> str:
-    print("CROPPING BLACK BARS")
+    # print("CROPPING BLACK BARS")
     ffmpeg_output = subprocess.getoutput(
         f'ffmpeg -i "{source_video_path}" -t 10 -vf cropdetect -f null -'
     ).splitlines()
-    data = [x for x in ffmpeg_output if "crop=" in x]
+    data = [x for x in ffmpeg_output if "crop=" in x][-1]
+    # _ = input(data.rsplit(maxsplit=1)[-1])
 
     # get the last data point? (does the crop size ever change?) --> Need to test
-    return data[-1].split(maxsplit=1)[-1]
+    return data.rsplit(maxsplit=1)[-1]
 
 
 # TESTS:

@@ -16,7 +16,7 @@ def main() -> None:
         output_filename="OUTPUT FILE.mp4",
         ffmpeg_codec_information=ffmpeg.H264(preset="veryfast"),
         heuristic_type=ffmpeg_heuristics.VMAF(target_score=90),
-        crop_black_bars=False,
+        crop_black_bars=True,
     )
 
 

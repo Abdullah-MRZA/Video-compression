@@ -1,4 +1,5 @@
 # import plotly.express as px
+from types import TracebackType
 from typing import Literal
 import plotly.graph_objects as go
 # import pandas as pd
@@ -25,11 +26,21 @@ import plotly.graph_objects as go
 # fig.write_image(".png")
 
 
-class linegraph:
-    def __init__(self) -> None:
+class linegraph_image:
+    def __init__(
+        self,
+        filename_without_extension: str,
+        fileformat: Literal["png", "jpeg", "webp", "svg", "pdf"] = "png",
+    ) -> None:
         self.fig = go.Figure()
+        self.filename = filename_without_extension
+        self.fileformat = fileformat
+
+    def __enter__(self):
+        return self
 
     def add_linegraph(
+        self,
         x_data: list[int | float],
         y_data: list[int | float],
         name: str,
@@ -44,5 +55,10 @@ class linegraph:
             )
         )
 
-    def write_image(filename: str) -> None:
-        fig.write_image(filename)
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: TracebackType | None,
+    ) -> None:
+        self.fig.write_image(self.filename + "." + self.fileformat)
