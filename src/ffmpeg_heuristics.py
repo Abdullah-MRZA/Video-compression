@@ -13,14 +13,44 @@ class VMAF:
         self,
         source_video_path: str,
         encoded_video_path: str,
+        source_start_end_time: None | tuple[str, str] = None,
+        encode_start_end_time: None | tuple[str, str] = None,
         ffmpeg_path: str = "ffmpeg",
         threads_to_use: int = 5,
         subsample: int = 2,  # Calculate per X frames
     ) -> float:
         ffmpeg_output = subprocess.getoutput(
-            f'{ffmpeg_path} -hide_banner -i "{encoded_video_path}" -i "{source_video_path}"'
-            + " "
-            + f'-lavfi libvmaf="n_threads={threads_to_use}:n_subsample={subsample}" -f null -'
+            " ".join(
+                [
+                    ffmpeg_path,
+                    "-hide_banner",
+                    (
+                        f"-ss {encode_start_end_time[0]}"
+                        if encode_start_end_time is not None
+                        else ""
+                    ),
+                    f'-i "{encoded_video_path}"',
+                    (
+                        f"-to {encode_start_end_time[1]}"
+                        if encode_start_end_time is not None
+                        else ""
+                    ),
+                    (
+                        f"-ss {source_start_end_time[0]}"
+                        if source_start_end_time is not None
+                        else ""
+                    ),
+                    f'-i "{source_video_path}"',
+                    (
+                        f"-to {source_start_end_time[1]}"
+                        if source_start_end_time is not None
+                        else ""
+                    ),
+                    (
+                        f'-lavfi libvmaf="n_threads={threads_to_use}:n_subsample={subsample}" -f null -'
+                    ),
+                ]
+            )
         )
         # This approach *could* be error prone to changes in FFMPEG?
         return float(
@@ -84,6 +114,7 @@ class VMAF:
 
 
 def crop_black_bars(source_video_path: str) -> str:
+    print("CROPPING BLACK BARS")
     ffmpeg_output = subprocess.getoutput(
         f'ffmpeg -i "{source_video_path}" -t 10 -vf cropdetect -f null -'
     ).splitlines()
@@ -94,4 +125,4 @@ def crop_black_bars(source_video_path: str) -> str:
 
 
 # TESTS:
-# print(VMAF().overall("test.mp4", "lowquality.mp4"))
+# print(VMAF(target_score=90).overall("test.mp4", "lowquality.mp4"))

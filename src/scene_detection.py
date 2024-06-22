@@ -8,7 +8,7 @@ from scenedetect.frame_timecode import FrameTimecode
 
 def find_scenes(
     video_path: str, threshold: float = 27.0
-) -> list[tuple[int, int]]:  # list[tuple[FrameTimecode, FrameTimecode]]:
+) -> list[tuple[str, str]]:  # list[tuple[FrameTimecode, FrameTimecode]]:
     """
     Function that gets the frames of the different scenes in the video
     """
@@ -23,7 +23,9 @@ def find_scenes(
     # for each scene that was found.
     # return scene_manager.get_scene_list()
     return [
-        (x[0].get_frames(), x[1].get_frames()) for x in scene_manager.get_scene_list()
+        # (x[0].get_frames(), x[1].get_frames()) for x in scene_manager.get_scene_list()
+        (x[0].get_timecode(), x[1].get_timecode())
+        for x in scene_manager.get_scene_list()
     ]
 
 

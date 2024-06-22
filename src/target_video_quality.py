@@ -1,8 +1,9 @@
 import ffmpeg
+from rich import print
 import os
 import ffmpeg_heuristics
 import scene_detection
-# import matplotlib
+import matplotlib_graphs
 
 
 class Compress_video:
@@ -12,13 +13,13 @@ class Compress_video:
         ffmpeg_codec_information: ffmpeg.video,
         heuristic_type: ffmpeg_heuristics.heuristic,
         output_filename: str | None = None,
-        start_time_seconds: int = 0,
-        end_time_seconds: int = 0,
+        # start_time_seconds: int = 0,
+        # end_time_seconds: int = 0,
         crop_black_bars: bool = True,
         bit_depth: ffmpeg.bitdepth = "yuv420p10le",
         keyframe_placement: int | None = 200,
         ffmpeg_path: str = "ffmpeg",
-        draw_matplotlib_graph: bool = True,
+        # draw_matplotlib_graph: bool = True,
     ):
         """
         This does practically all of the calculations
@@ -26,44 +27,57 @@ class Compress_video:
         targeting a specific video heuristic
         This also recombines the video at the end
         """
-        # with ffmpeg.FfmpegCommand(
-        #     input_filename=input_filename,
-        #     codec_information=ffmpeg_codec_information,
-        #     output_filename=output_filename,
-        #     start_time_seconds=start_time_seconds,
-        #     end_time_seconds=end_time_seconds,
-        #     crop_black_bars=crop_black_bars,
-        #     bit_depth=bit_depth,
-        #     keyframe_placement=keyframe_placement,
-        #     ffmpeg_path=ffmpeg_path,
-        # ) as command:
+
         video_scenes = scene_detection.find_scenes(input_filename)
+        print(f"{video_scenes=}")
+
+        video_data_crf_heuristic: list[tuple[int, float]] = []
 
         for i, scenes in enumerate(video_scenes):
-            _ = Compress_video._compress_video_part(
-                input_filename,
-                f"{i}-{input_filename}",
-                *scenes,
-                heuristic_type,
-                crop_black_bars,
-                bit_depth,
-                keyframe_placement,
-                ffmpeg_codec_information,
+            print(f"RUNNING SECTION {i} OF SCENE")
+            optimal_crf_value, heuristic_value_of_encode = (
+                Compress_video._compress_video_part(
+                    input_filename,
+                    f"{i}-{input_filename}",
+                    *scenes,
+                    heuristic_type,
+                    crop_black_bars,
+                    bit_depth,
+                    keyframe_placement,
+                    ffmpeg_codec_information,
+                )
             )
+            video_data_crf_heuristic.append(
+                (optimal_crf_value, heuristic_value_of_encode)
+            )
+
+        heuristic_type.NAME
+        matplotlib_graphs.make_better_linegraph(
+            heuristic_list=[x[1] for x in video_data_crf_heuristic],
+            crf_list=[x[0] for x in video_data_crf_heuristic],
+            # heuristic_name=heuristic_type.NAME,
+            heuristic_name="VMAF",
+        )
+
+        if output_filename == None:
+            output_filename = f"RENDERED - {input_filename}"
+        ffmpeg.concatenate_video_files(
+            [f"{x}-test.mp4" for x in range(len(video_scenes))], output_filename
+        )
 
     @staticmethod
     def _compress_video_part(
         input_filename: str,
         output_filename: str,
-        part_beginning: int,
-        part_end: int,
+        part_beginning: str,
+        part_end: str,
         heuristic_type: ffmpeg_heuristics.heuristic,
         crop_black_bars: bool,
         bit_depth: ffmpeg.bitdepth,
         keyframe_placement: int | None,
         ffmpeg_codec_information: ffmpeg.video,
         ffmpeg_path: str = "ffmpeg",
-    ) -> float:
+    ) -> tuple[int, float]:
         """
         Using a binary search approach on the whole range of CRF
         Would identify the ideal CRF for the closest heuristic value??
@@ -71,9 +85,11 @@ class Compress_video:
         """
         # use a 'binary search' approach? Is this optimal? (doubt it, but definitely functional)
 
+        tempoary_video_file_name: str = f"TEMP-{input_filename}"
+
         with ffmpeg.FfmpegCommand(
             input_filename=input_filename,
-            output_filename=f"TEMP-{input_filename}",
+            output_filename=tempoary_video_file_name,
             codec_information=ffmpeg_codec_information,
             start_time_seconds=part_beginning,
             end_time_seconds=part_end,
@@ -90,19 +106,47 @@ class Compress_video:
             # at the end point, we would be doing the same calculation twice
             while (
                 current_crf := (top_crf_value + bottom_crf_value) // 2
-            ) not in all_heuristic_crf_data:
+            ) not in all_heuristic_crf_data.values():
+                print(f"RUNNING CRF VALUE {current_crf}")
+
                 command.run_ffmpeg_command(current_crf)
+
                 current_crf_heuristic = heuristic_type.overall(
-                    input_filename, f"TEMP-{input_filename}"
+                    source_video_path=input_filename,
+                    encoded_video_path=tempoary_video_file_name,
+                    source_start_end_time=(part_beginning, part_end),
+                    encode_start_end_time=None,
                 )
+
                 all_heuristic_crf_data.update({current_crf_heuristic: current_crf})
 
-            closest_crf_value_to_target_heuristic = min(
-                (x - heuristic_type.target_score, i)
-                for i, x in enumerate(all_heuristic_crf_data)
-            )[1]
+                # ASSUMPTION THAT BIGGER IS BETTER (WARNING)
+                if current_crf_heuristic > heuristic_type.target_score:
+                    bottom_crf_value = current_crf
+                elif current_crf_heuristic < heuristic_type.target_score:
+                    top_crf_value = current_crf
+                elif current_crf_heuristic == heuristic_type.target_score:
+                    break
+                print(
+                    f"FINISHED RUNNING {current_crf} -> {current_crf_heuristic} compared to {heuristic_type.target_score} | {all_heuristic_crf_data}"
+                )
+                # _ = input("continue?")
 
-            os.remove(f"TEMP-{input_filename}")
+            closest_crf_value_to_target_heuristic = min(
+                (abs(x[0] - heuristic_type.target_score), x[1])
+                for x in all_heuristic_crf_data.items()
+            )[1]
+            # print(closest_crf_value_to_target_heuristic)
+
+            # closest_crf_value_to_target_heuristic = (
+            #     closest_crf_value_to_target_heuristic[1]
+            # )
+
+            os.remove(tempoary_video_file_name)
+
+            # _ = input(
+            #     f"OPTIMAL CRF VALUE IS {closest_crf_value_to_target_heuristic} (continue?)"
+            # )
 
             command.run_ffmpeg_command(
                 closest_crf_value_to_target_heuristic,
@@ -110,4 +154,7 @@ class Compress_video:
             )
 
             all_crf_heuristic_data = {v: k for k, v in all_heuristic_crf_data.items()}
-            return all_crf_heuristic_data[closest_crf_value_to_target_heuristic]
+            return closest_crf_value_to_target_heuristic, all_crf_heuristic_data[
+                closest_crf_value_to_target_heuristic
+            ]
+            # return closest_crf_value_to_target_heuristic

@@ -42,7 +42,7 @@ class SVTAV1:
             command.append(f"-svtav1-params film-grain={self.film_grain[0]}")
             command.append(f"film-grain-denoise={self.film_grain[1]}")
 
-        command.append(f"-svtav1-params tune {["subjective", "PSNR"].index(self.tune)}")
+        command.append(f"-svtav1-params tune={["subjective", "PSNR"].index(self.tune)}")
 
         return command
 
@@ -74,7 +74,15 @@ class H264:
         "ssim",
     ] = None
 
-    def to_subprocess_command(self) -> list[str]: ...
+    def to_subprocess_command(self) -> list[str]:
+        command = [
+            "-c:v libx264",
+            f"-preset {self.preset}",
+        ]  # chekc if works
+
+        if self.tune is not None:
+            command.append(f"-tune {self.tune}")
+        return command
 
 
 @dataclass()
@@ -108,10 +116,10 @@ class FfmpegCommand:
     input_filename: str
     codec_information: video
 
-    start_time_seconds: float
-    end_time_seconds: float
+    start_time_seconds: str
+    end_time_seconds: str
 
-    output_filename: str | None = None
+    output_filename: str
 
     crop_black_bars: bool = True
     bit_depth: bitdepth = "yuv420p10le"
@@ -119,21 +127,21 @@ class FfmpegCommand:
     ffmpeg_path: str = "ffmpeg"
 
     def __enter__(self):
-        if self.output_filename is None:
-            self.output_filename = f"OUTPUT - {self.input_filename}"
+        # if self.output_filename is None:
+        #     self.output_filename = f"OUTPUT - {self.input_filename}"
 
         # Separate audio from the video file
-        _ = subprocess.run(
-            [
-                self.ffmpeg_path,
-                "-i",
-                f'"{self.input_filename}"',
-                "-c:a', 'copy",
-                "-vn",
-                f'"TEMP-{self.output_filename}.mkv"',  # storing audio only in mkv :woozy_face:
-            ]
-        )
-        print("CONVERTED FILE")
+        # _ = subprocess.run(
+        #     [
+        #         self.ffmpeg_path,
+        #         "-i",
+        #         f'"{self.input_filename}"',
+        #         "-c:a', 'copy",
+        #         "-vn",
+        #         f'"TEMP-{self.output_filename}.mkv"',  # storing audio only in mkv :woozy_face:
+        #     ]
+        # )
+        print("TODO: automatic extraction and addition of audio files")
         return self
 
     def run_ffmpeg_command(
@@ -141,10 +149,12 @@ class FfmpegCommand:
     ) -> None:
         command: list[str] = [
             self.ffmpeg_path,
-            f'-ss "{self.start_time_seconds}"',
+            "-hide_banner -loglevel error",
+            f"-ss {self.start_time_seconds}",
             f'-i "{self.input_filename}"',
-            f"-t {self.start_time_seconds - self.end_time_seconds}",
+            f"-to {self.end_time_seconds}",
             "-an",
+            "-y",
             f"-crf {crf_value}",
             *self.codec_information.to_subprocess_command(),
             # f'"intermediate-{self.output_filename}"',
@@ -161,7 +171,9 @@ class FfmpegCommand:
         if self.keyframe_placement is not None:
             command.insert(-1, f"-g {self.keyframe_placement}")
 
-        _ = subprocess.run(" ".join(command), shell=True)
+        # _ = subprocess.run(" ".join(command), shell=True)
+        print(" ".join(command))
+        _ = os.system(" ".join(command))
 
     def __exit__(
         self,
@@ -170,20 +182,30 @@ class FfmpegCommand:
         exc_traceback: TracebackType | None,
     ) -> None:
         # recombine audio with the file
-        _ = subprocess.run(
-            [
-                self.ffmpeg_path,
-                f'-i "intermediate-{self.output_filename}"',
-                "-c:a copy",
-                "-vn",
-                f"{self.output_filename}",
-            ]
-        )
-        os.remove(f"intermediate-{self.output_filename}")
+        print("TODO - add the audio back")
+        # _ = subprocess.run(
+        #     [
+        #         self.ffmpeg_path,
+        #         f'-i "intermediate-{self.output_filename}"',
+        #         "-c:a copy",
+        #         "-vn",
+        #         f"{self.output_filename}",
+        #     ]
+        # )
+        # os.remove(f"intermediate-{self.output_filename}")
 
 
-def concatenate_video_files():
+def concatenate_video_files(list_of_video_files: list[str], output_filename: str):
     """
     NOTE THE CODEC OF THE VIDEO FILES MUST BE THE SAME!
+    This combines the video files together
     """
-    ...
+    concatenated_list_of_video_files = " ".join(f'"{x}"' for x in list_of_video_files)
+    concatenated_list_of_video_files_filter = "".join(
+        f"[{x}:v:0]" for x in range(len(list_of_video_files))
+    )
+    _ = os.system(
+        f"ffmpeg -i {concatenated_list_of_video_files} -filter_complex {concatenated_list_of_video_files_filter} -map [outv] {output_filename}"
+    )
+
+    # ffmpeg -i 1-test.mp4 -i 0-test.mp4 -i 0-test.mp4 -filter_complex "[0:v:0][1:v:0][2:v:0]concat=n=3:v=1:[outv]" -map "[outv]" output.mkv
