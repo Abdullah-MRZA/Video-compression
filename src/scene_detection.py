@@ -1,6 +1,6 @@
 import scenedetect as sd
 from scenedetect.frame_timecode import FrameTimecode
-from rich import print
+# from rich import print
 
 # Seemingly many errors with this library
 # Though as there are no runtime errors, it might be due to library implementation
@@ -17,7 +17,7 @@ def find_scenes(
     scene_manager.add_detector(sd.ContentDetector(threshold=threshold))
 
     # Detect all scenes in video from current position to end.
-    scene_manager.detect_scenes(video)
+    _ = scene_manager.detect_scenes(video)
 
     # `get_scene_list` returns a list of start/end timecode pairs
     # for each scene that was found.
