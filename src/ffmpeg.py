@@ -200,12 +200,18 @@ def concatenate_video_files(list_of_video_files: list[str], output_filename: str
     NOTE THE CODEC OF THE VIDEO FILES MUST BE THE SAME!
     This combines the video files together
     """
-    concatenated_list_of_video_files = " ".join(f'"{x}"' for x in list_of_video_files)
+    concatenated_list_of_video_files = " ".join(
+        f'-i "{x}"' for x in list_of_video_files
+    )
     concatenated_list_of_video_files_filter = "".join(
         f"[{x}:v:0]" for x in range(len(list_of_video_files))
     )
+
+    print(
+        f"ffmpeg {concatenated_list_of_video_files} -filter_complex {concatenated_list_of_video_files_filter} -map [outv] {output_filename}"
+    )
     _ = os.system(
-        f"ffmpeg -i {concatenated_list_of_video_files} -filter_complex {concatenated_list_of_video_files_filter} -map [outv] {output_filename}"
+        f"ffmpeg {concatenated_list_of_video_files} -filter_complex {concatenated_list_of_video_files_filter} -map [outv] {output_filename}"
     )
 
     # ffmpeg -i 1-test.mp4 -i 0-test.mp4 -i 0-test.mp4 -filter_complex "[0:v:0][1:v:0][2:v:0]concat=n=3:v=1:[outv]" -map "[outv]" output.mkv

@@ -3,7 +3,7 @@ from rich import print
 import os
 import ffmpeg_heuristics
 import scene_detection
-import matplotlib_graphs
+import graph_generate
 
 
 class Compress_video:
@@ -51,13 +51,8 @@ class Compress_video:
                 (optimal_crf_value, heuristic_value_of_encode)
             )
 
-        heuristic_type.NAME
-        matplotlib_graphs.make_better_linegraph(
-            heuristic_list=[x[1] for x in video_data_crf_heuristic],
-            crf_list=[x[0] for x in video_data_crf_heuristic],
-            # heuristic_name=heuristic_type.NAME,
-            heuristic_name="VMAF",
-        )
+        # graph = graph_generate.linegraph()
+        # graph.add_linegraph()
 
         if output_filename == None:
             output_filename = f"RENDERED - {input_filename}"
