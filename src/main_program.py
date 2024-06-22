@@ -12,12 +12,18 @@ def main() -> None:
     #     logging.error("FFMPEG is not installed!!\nExiting..")
     #     return
 
-    video_path: str = "input.mp4"
+    video_path: str = "test.mp4"
     # scenes = scene_detection.find_scenes(video_path)
     # commands = ffmpeg.FfmpegCommand() (moved to target_video_quality file)
 
-    target_video_quality.compress_video(
-        video_path, ffmpeg.SVTAV1, ffmpeg_heuristics.VMAF
+    # target_video_quality.compress_video(
+    #     video_path, ffmpeg.SVTAV1(preset=4), ffmpeg_heuristics.VMAF
+    # )
+
+    target_video_quality.Compress_video.compress_video(
+        input_filename=video_path,
+        ffmpeg_codec_information=ffmpeg.SVTAV1(preset=4),
+        heuristic_type=ffmpeg_heuristics.VMAF(target_score=90),
     )
 
 

@@ -1,4 +1,5 @@
 import subprocess
+import ffmpeg_heuristics
 import os
 from dataclasses import dataclass
 from types import TracebackType
@@ -7,6 +8,7 @@ from typing import Literal
 
 type video = SVTAV1 | H265 | H264
 # TODO add VP9 support when I feel like it
+type bitdepth = Literal["yuv420p10le", "yuv420p"]
 
 
 # @dataclass()
@@ -19,11 +21,11 @@ type video = SVTAV1 | H265 | H264
 
 @dataclass()
 class SVTAV1:
-    crf_value: int
+    # crf_value: int
     preset: int = 8
 
     # -svtav1-params film-grain=X, film-grain-denoise=0
-    film_grain: None | tuple[int, bool] = (0, True)
+    film_grain: None | tuple[int, bool] = None
     tune: Literal["subjective", "PSNR"] = "subjective"
 
     # const data
@@ -31,20 +33,24 @@ class SVTAV1:
 
     def to_subprocess_command(self) -> list[str]:
         # return [f"-crf {}", f"-preset {preset}"] + [f"-svtav1-params film-grain={film-grain[0]}"]
-        command = ["-c:v libsvtav1", f"-preset {self.preset}", f"-crf {self.crf_value}"]
+        command = [
+            "-c:v libsvtav1",
+            f"-preset {self.preset}",
+        ]  # , f"-crf {self.crf_value}"]
 
         if self.film_grain is not None:
             command.append(f"-svtav1-params film-grain={self.film_grain[0]}")
             command.append(f"film-grain-denoise={self.film_grain[1]}")
 
-        command.append(f"-tune {["subjective", "PSNR"].index(self.tune)}")
+        command.append(f"-svtav1-params tune {["subjective", "PSNR"].index(self.tune)}")
 
         return command
 
 
 @dataclass()
 class H264:
-    crf_range: range = range(0, 40, 1)
+    ACCEPTED_CRF_RANGE: range = range(0, 40, 1)
+
     preset: Literal[
         "ultrafast",
         "superfast",
@@ -73,7 +79,7 @@ class H264:
 
 @dataclass()
 class H265:
-    crf_range: range = range(0, 40, 1)
+    ACCEPTED_CRF_RANGE: range = range(0, 40, 1)
     preset: Literal[
         "ultrafast",
         "superfast",
@@ -91,7 +97,7 @@ class H265:
 
 @dataclass()
 class VP9:
-    crf_range: range = range(0, 50, 1)
+    ACCEPTED_CRF_RANGE: range = range(0, 50, 1)
     two_passes: bool = True
 
     def to_subprocess_command(self) -> list[str]: ...
@@ -101,13 +107,14 @@ class VP9:
 class FfmpegCommand:
     input_filename: str
     codec_information: video
+
+    start_time_seconds: float
+    end_time_seconds: float
+
     output_filename: str | None = None
 
-    start_time_seconds: int = 0
-    end_time_seconds: int = 0
-
     crop_black_bars: bool = True
-    bit_depth: Literal["yuv420p10le", "yuv420p"] = "yuv420p10le"
+    bit_depth: bitdepth = "yuv420p10le"
     keyframe_placement: int | None = 200
     ffmpeg_path: str = "ffmpeg"
 
@@ -119,30 +126,42 @@ class FfmpegCommand:
         _ = subprocess.run(
             [
                 self.ffmpeg_path,
-                f'-i "{self.input_filename}"',
-                "-c:a copy",
+                "-i",
+                f'"{self.input_filename}"',
+                "-c:a', 'copy",
                 "-vn",
                 f'"TEMP-{self.output_filename}.mkv"',  # storing audio only in mkv :woozy_face:
             ]
         )
+        print("CONVERTED FILE")
         return self
 
-    def run_ffmpeg_command(self) -> None:
+    def run_ffmpeg_command(
+        self, crf_value: int, override_output_file_name: str | None = None
+    ) -> None:
         command: list[str] = [
             self.ffmpeg_path,
-            f'-i "{self.input_filename}"',
             f'-ss "{self.start_time_seconds}"',
+            f'-i "{self.input_filename}"',
+            f"-t {self.start_time_seconds - self.end_time_seconds}",
+            "-an",
+            f"-crf {crf_value}",
             *self.codec_information.to_subprocess_command(),
-            f'"intermediate-{self.output_filename}"',
+            # f'"intermediate-{self.output_filename}"',
+            f'"{self.output_filename}"'
+            if override_output_file_name is None
+            else override_output_file_name,
         ]
 
         if self.crop_black_bars:
-            command.insert(-1, "-vf cropdetect")
+            command.insert(
+                -1, f"-vf {ffmpeg_heuristics.crop_black_bars(self.input_filename)}"
+            )
 
         if self.keyframe_placement is not None:
             command.insert(-1, f"-g {self.keyframe_placement}")
 
-        _ = subprocess.run(command)
+        _ = subprocess.run(" ".join(command), shell=True)
 
     def __exit__(
         self,
@@ -161,3 +180,10 @@ class FfmpegCommand:
             ]
         )
         os.remove(f"intermediate-{self.output_filename}")
+
+
+def concatenate_video_files():
+    """
+    NOTE THE CODEC OF THE VIDEO FILES MUST BE THE SAME!
+    """
+    ...
