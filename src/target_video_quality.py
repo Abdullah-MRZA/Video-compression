@@ -1,15 +1,15 @@
-import ffmpeg
 from rich import print
-import os
+import ffmpeg
 import ffmpeg_heuristics
-import scene_detection
 import graph_generate
+import os
+import scene_detection
 
 
 class Compress_video:
     @staticmethod
     def compress_video(
-        input_filename: str,
+        input_filename_with_extension: str,
         ffmpeg_codec_information: ffmpeg.video,
         heuristic_type: ffmpeg_heuristics.heuristic,
         output_filename: str | None = None,
@@ -21,6 +21,8 @@ class Compress_video:
         ffmpeg_path: str = "ffmpeg",
         # draw_matplotlib_graph: bool = True,
         extra_current_crf_itterate_amount: int = 1,
+        delete_tempoary_files: bool = True,
+        scene_detection_threshold: float = 27.0,
     ):
         """
         This does practically all of the calculations
@@ -29,17 +31,20 @@ class Compress_video:
         This also recombines the video at the end
         """
 
-        video_scenes = scene_detection.find_scenes(input_filename)
+        video_scenes = scene_detection.find_scenes(
+            video_path=input_filename_with_extension,
+            threshold=scene_detection_threshold,
+        )
         print(f"{video_scenes=}")
 
         video_data_crf_heuristic: list[tuple[int, float]] = []
 
-        for i, scenes in enumerate(video_scenes):
+        for i, scenes in enumerate(video_scenes[0]):
             print(f"RUNNING SECTION {i} OF SCENE")
             optimal_crf_value, heuristic_value_of_encode = (
                 Compress_video._compress_video_part(
-                    input_filename=input_filename,
-                    output_filename=f"{i}-{input_filename}",
+                    input_filename=input_filename_with_extension,
+                    output_filename=f"{i}-{input_filename_with_extension}",
                     part_beginning=scenes[0],
                     part_end=scenes[1],
                     heuristic_type=heuristic_type,
@@ -56,31 +61,42 @@ class Compress_video:
             )
 
         with graph_generate.linegraph_image(
-            filename_without_extension="Video_information"
+            filename_without_extension="Video_information",
+            title_of_graph=f"CRF and {heuristic_type.NAME} throughout video",
+            x_axis_name="Time",
         ) as graph:
             graph.add_linegraph(
-                x_data=list(range(len(video_data_crf_heuristic))),
+                x_data=[x[0] for x in video_scenes[1]],
                 y_data=[x[0] for x in video_data_crf_heuristic],
                 name="CRF",
                 mode="lines+markers",
+                on_left_right_side="left",
             )
             graph.add_linegraph(
-                x_data=list(range(len(video_data_crf_heuristic))),
+                x_data=[x[0] for x in video_scenes[1]],
                 y_data=[x[1] for x in video_data_crf_heuristic],
                 name=heuristic_type.NAME,
                 mode="lines+markers",
+                on_left_right_side="right",
             )
 
         # graph = graph_generate.linegraph()
         # graph.add_linegraph()
 
         if output_filename is None:
-            output_filename = f"RENDERED - {input_filename}"
+            output_filename = f"RENDERED - {input_filename_with_extension}"
 
         ffmpeg.concatenate_video_files(
-            [f"{x}-test.mp4" for x in range(len(video_scenes))], output_filename
+            [
+                f"{x}-{input_filename_with_extension}"
+                for x in range(len(video_scenes[0]))
+            ],
+            output_filename,
         )
-        [os.remove(f"{x}-test.mp4") for x in range(len(video_scenes))]
+
+        if delete_tempoary_files:
+            for x in range(len(video_scenes)):
+                os.remove(f"{x}-{input_filename_with_extension}")
 
     @staticmethod
     def _compress_video_part(
@@ -129,14 +145,7 @@ class Compress_video:
                 )
                 * extra_current_crf_itterate_amount
             ) not in all_heuristic_crf_data.values():
-                # current_crf = (
-                #     current_crf // extra_current_crf_itterate_amount
-                # ) * extra_current_crf_itterate_amount
-
-                print(f"RUNNING CRF VALUE {current_crf}")  # BUG HERE!!!
-                # _ = input(
-                #     f"{current_crf} - {current_crf in all_heuristic_crf_data.values()}"
-                # )
+                print(f"RUNNING CRF VALUE {current_crf}")
 
                 command.run_ffmpeg_command(current_crf)
 
@@ -157,7 +166,7 @@ class Compress_video:
                 elif current_crf_heuristic == heuristic_type.target_score:
                     break
                 print(
-                    f"FINISHED RUNNING {current_crf} -> {current_crf_heuristic} compared to {heuristic_type.target_score} | {all_heuristic_crf_data}"
+                    f"    FINISHED RUNNING {current_crf} -> {current_crf_heuristic} compared to {heuristic_type.target_score} | {all_heuristic_crf_data}"
                 )
                 # _ = input("continue?")
 

@@ -7,6 +7,10 @@ type heuristic = VMAF
 
 @dataclass()
 class VMAF:
+    """
+    the VMAF heuristic. A score of like 90 is usually good
+    """
+
     target_score: int
     NAME: str = "VMAF"
 
