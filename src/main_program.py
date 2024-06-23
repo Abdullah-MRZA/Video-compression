@@ -18,7 +18,6 @@ def main() -> None:
         heuristic_type=ffmpeg_heuristics.VMAF(target_score=90),
         crop_black_bars=True,
         extra_current_crf_itterate_amount=1,
-        delete_tempoary_files=False,
         scene_detection_threshold=27,
     )
 
