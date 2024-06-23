@@ -103,12 +103,12 @@ class H265:
     def to_subprocess_command(self) -> list[str]: ...
 
 
-@dataclass()
-class VP9:
-    ACCEPTED_CRF_RANGE: range = range(0, 50, 1)
-    two_passes: bool = True
-
-    def to_subprocess_command(self) -> list[str]: ...
+# @dataclass()
+# class VP9:
+#     ACCEPTED_CRF_RANGE: range = range(0, 50, 1)
+#     two_passes: bool = True
+#
+#     def to_subprocess_command(self) -> list[str]: ...
 
 
 @dataclass()

@@ -1,15 +1,14 @@
 # Video compression
 
-A test for compressing videos efficiently
+A test for compressing videos efficiently.
 
-Use many different codecs to compress videos in the optimal way
 
 ## Planned Features
 
-- [x] Target quality (eg VMAF) instead of CRF guessing (incomplete)
+- [x] Target quality (eg VMAF, etc) instead of CRF guessing (incomplete)
 - [x] Video splitting based on scene changes
 - [x] Automatic cropping of black bars (needs testing)
-
+- [ ] Local multithreading of rendering (for concurrent encodes)
 
 
 > [!CAUTION]
@@ -22,3 +21,4 @@ If there is a feature you would like to implement, get in touch!
 
 - [ ] Adding video metadata
 - [ ] HDR support?
+- [ ] Shared rendering between computers?

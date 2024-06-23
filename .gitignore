@@ -4,8 +4,8 @@ __pycache__/
 *$py.class
 
 # Video files
-*mp4
-*mkv
+*.mp4
+*.mkv
 
 # C extensions
 *.so
