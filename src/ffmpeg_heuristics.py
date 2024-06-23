@@ -54,6 +54,9 @@ class VMAF:
             )
         )
         # This approach *could* be error prone to changes in FFMPEG?
+        print(
+            f"{[x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]=}"
+        )
         return float(
             [x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]
         )

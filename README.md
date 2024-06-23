@@ -6,16 +6,19 @@ Use many different codecs to compress videos in the optimal way
 
 ## Planned Features
 
-- Target quality (eg VMAF) instead of CRF guessing
-- Video splitting based on scene changes
+- [x] Target quality (eg VMAF) instead of CRF guessing (incomplete)
+- [x] Video splitting based on scene changes
+- [x] Automatic cropping of black bars (needs testing)
 
 
-NOTE, this is still a **work in progress!!!**
+
+> [!CAUTION]
+> NOTE: this is still a **work in progress!!!**
+
 
 If there is a feature you would like to implement, get in touch!
 
 ## Possible features
 
-- Automatic cropping of black bars
-- Adding video metadata
-- HDR support?
+- [ ] Adding video metadata
+- [ ] HDR support?

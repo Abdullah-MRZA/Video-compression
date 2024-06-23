@@ -20,6 +20,7 @@ class Compress_video:
         keyframe_placement: int | None = 200,
         ffmpeg_path: str = "ffmpeg",
         # draw_matplotlib_graph: bool = True,
+        extra_current_crf_itterate_amount: int = 1,
     ):
         """
         This does practically all of the calculations
@@ -47,6 +48,7 @@ class Compress_video:
                     keyframe_placement=keyframe_placement,
                     ffmpeg_codec_information=ffmpeg_codec_information,
                     ffmpeg_path=ffmpeg_path,
+                    extra_current_crf_itterate_amount=extra_current_crf_itterate_amount,
                 )
             )
             video_data_crf_heuristic.append(
@@ -92,6 +94,7 @@ class Compress_video:
         keyframe_placement: int | None,
         ffmpeg_codec_information: ffmpeg.video,
         ffmpeg_path: str = "ffmpeg",
+        extra_current_crf_itterate_amount: int = 1,
     ) -> tuple[int, float]:
         """
         Using a binary search approach on the whole range of CRF
@@ -120,9 +123,20 @@ class Compress_video:
 
             # at the end point, we would be doing the same calculation twice
             while (
-                current_crf := (top_crf_value + bottom_crf_value) // 2
+                current_crf := (
+                    (top_crf_value + bottom_crf_value)
+                    // (2 * extra_current_crf_itterate_amount)
+                )
+                * extra_current_crf_itterate_amount
             ) not in all_heuristic_crf_data.values():
-                print(f"RUNNING CRF VALUE {current_crf}")
+                # current_crf = (
+                #     current_crf // extra_current_crf_itterate_amount
+                # ) * extra_current_crf_itterate_amount
+
+                print(f"RUNNING CRF VALUE {current_crf}")  # BUG HERE!!!
+                # _ = input(
+                #     f"{current_crf} - {current_crf in all_heuristic_crf_data.values()}"
+                # )
 
                 command.run_ffmpeg_command(current_crf)
 
