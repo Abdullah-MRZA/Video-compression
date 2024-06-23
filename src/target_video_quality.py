@@ -63,7 +63,7 @@ class Compress_video:
         with graph_generate.linegraph_image(
             filename_without_extension="Video_information",
             title_of_graph=f"CRF and {heuristic_type.NAME} throughout video",
-            x_axis_name="Time",
+            x_axis_name="Frames",
         ) as graph:
             graph.add_linegraph(
                 x_data=[x[0] for x in video_scenes[1]],

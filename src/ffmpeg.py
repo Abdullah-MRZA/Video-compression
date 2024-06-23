@@ -150,8 +150,8 @@ class FfmpegCommand:
         command: list[str] = [
             self.ffmpeg_path,
             "-hide_banner -loglevel error",
-            f"-ss {self.start_time_seconds}",
             f'-i "{self.input_filename}"',
+            f"-ss {self.start_time_seconds}",  # -ss After is **very important** for accuracy!!
             f"-to {self.end_time_seconds}",
             "-an",
             f"-pix_fmt {self.bit_depth}",
