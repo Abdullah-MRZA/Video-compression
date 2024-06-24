@@ -78,10 +78,11 @@ class H264:
         command = [
             "-c:v libx264",
             f"-preset {self.preset}",
-        ]  # chekc if works
+        ]
 
         if self.tune is not None:
             command.append(f"-tune {self.tune}")
+
         return command
 
 
@@ -100,7 +101,13 @@ class H265:
         "veryslow",
     ] = "slower"
 
-    def to_subprocess_command(self) -> list[str]: ...
+    def to_subprocess_command(self) -> list[str]:
+        command = [
+            "-c:v libx265",
+            f"-preset {self.preset}",
+        ]
+
+        return command
 
 
 # @dataclass()
@@ -120,28 +127,13 @@ class FfmpegCommand:
     end_time_seconds: str
 
     output_filename: str
+    ffmpeg_path: str
 
-    crop_black_bars: bool = True
-    bit_depth: bitdepth = "yuv420p10le"
-    keyframe_placement: int | None = 200
-    ffmpeg_path: str = "ffmpeg"
+    crop_black_bars: bool
+    bit_depth: bitdepth
+    keyframe_placement: int | None
 
     def __enter__(self):
-        # if self.output_filename is None:
-        #     self.output_filename = f"OUTPUT - {self.input_filename}"
-
-        # Separate audio from the video file
-        # _ = subprocess.run(
-        #     [
-        #         self.ffmpeg_path,
-        #         "-i",
-        #         f'"{self.input_filename}"',
-        #         "-c:a', 'copy",
-        #         "-vn",
-        #         f'"TEMP-{self.output_filename}.mkv"',  # storing audio only in mkv :woozy_face:
-        #     ]
-        # )
-        print("TODO: automatic extraction and addition of audio files")
         return self
 
     def run_ffmpeg_command(
@@ -172,7 +164,6 @@ class FfmpegCommand:
         if self.keyframe_placement is not None:
             command.insert(-1, f"-g {self.keyframe_placement}")
 
-        # _ = subprocess.run(" ".join(command), shell=True)
         print(" ".join(command))
         _ = os.system(" ".join(command))
 
@@ -182,18 +173,7 @@ class FfmpegCommand:
         exc_value: BaseException | None,
         exc_traceback: TracebackType | None,
     ) -> None:
-        # recombine audio with the file
-        print("TODO - add the audio back (NOPE)")
-        # _ = subprocess.run(
-        #     [
-        #         self.ffmpeg_path,
-        #         f'-i "intermediate-{self.output_filename}"',
-        #         "-c:a copy",
-        #         "-vn",
-        #         f"{self.output_filename}",
-        #     ]
-        # )
-        # os.remove(f"intermediate-{self.output_filename}")
+        pass
 
 
 def concatenate_video_files(
@@ -229,4 +209,4 @@ def concatenate_video_files(
         f'ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"'
     )
 
-    # os.remove("video_list.txt")
+    os.remove("video_list.txt")

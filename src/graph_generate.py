@@ -36,6 +36,7 @@ class linegraph_image:
         fileformat: Literal["png", "jpeg", "webp", "svg", "pdf"] = "png",
         title_of_graph: str | None = None,
         x_axis_name: str | None = None,
+        save_data_to_file: bool = True,
     ) -> None:
         # self.fig = go.Figure()
         self.fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -54,18 +55,19 @@ class linegraph_image:
         name: str,
         mode: Literal["lines", "lines+markers"],
         on_left_right_side: Literal["left", "right"],
+        # testing_y_axis_range: None | dict[str, list[int]] = None,
     ) -> None:
         _ = self.fig.add_trace(
             go.Scatter(
                 x=x_data,
                 y=y_data,
                 mode=mode,
-                name=name,
+                name=name,  # , yaxis=testing_y_axis_range
             ),
-            secondary_y=(on_left_right_side == "left"),
+            secondary_y=(on_left_right_side == "right"),
         )
         _ = self.fig.update_yaxes(
-            title_text=name, secondary_y=(on_left_right_side == "left")
+            title_text=name, secondary_y=(on_left_right_side == "right")
         )
 
     def __exit__(
@@ -79,4 +81,7 @@ class linegraph_image:
         if self.x_axis_name is not None:
             _ = self.fig.update_xaxes(title_text=self.x_axis_name)
 
-        self.fig.write_image(self.filename + "." + self.fileformat)
+        if save_data_to_file:
+            self.fig.write_image(self.filename + "." + self.fileformat)
+        else:
+            self.fig.show()

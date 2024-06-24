@@ -1,4 +1,5 @@
 from rich import print
+from rich.progress import track
 import ffmpeg
 import ffmpeg_heuristics
 import graph_generate
@@ -39,7 +40,10 @@ class Compress_video:
 
         video_data_crf_heuristic: list[tuple[int, float]] = []
 
-        for i, scenes in enumerate(video_scenes[0]):
+        for i, scenes in track(
+            list(enumerate(video_scenes[0])),  # doesn't work with just enumerate
+            description="[yellow]Processing scenes[/yellow]",
+        ):
             print(f"RUNNING SECTION {i} OF SCENE")
             optimal_crf_value, heuristic_value_of_encode = (
                 Compress_video._compress_video_part(
@@ -78,6 +82,7 @@ class Compress_video:
                 name=heuristic_type.NAME,
                 mode="lines+markers",
                 on_left_right_side="right",
+                # testing_y_axis_range=dict(range=[0, 100]),
             )
 
         # graph = graph_generate.linegraph()
@@ -109,7 +114,7 @@ class Compress_video:
         bit_depth: ffmpeg.bitdepth,
         keyframe_placement: int | None,
         ffmpeg_codec_information: ffmpeg.video,
-        ffmpeg_path: str = "ffmpeg",
+        ffmpeg_path: str,
         extra_current_crf_itterate_amount: int = 1,
     ) -> tuple[int, float]:
         """
@@ -164,7 +169,8 @@ class Compress_video:
                 elif current_crf_heuristic < heuristic_type.target_score:
                     top_crf_value = current_crf
                 elif current_crf_heuristic == heuristic_type.target_score:
-                    break
+                    break  # very unlikely to get here
+
                 print(
                     f"    FINISHED RUNNING {current_crf} -> {current_crf_heuristic} compared to {heuristic_type.target_score} | {all_heuristic_crf_data}"
                 )
@@ -182,9 +188,7 @@ class Compress_video:
 
             os.remove(tempoary_video_file_name)
 
-            # _ = input(
-            #     f"OPTIMAL CRF VALUE IS {closest_crf_value_to_target_heuristic} (continue?)"
-            # )
+            print(f"OPTIMAL CRF VALUE IS {closest_crf_value_to_target_heuristic}")
 
             command.run_ffmpeg_command(
                 closest_crf_value_to_target_heuristic,

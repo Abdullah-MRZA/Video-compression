@@ -34,23 +34,23 @@ class VMAF:
                         if encode_start_end_time is not None
                         else ""
                     ),
-                    f'-i "{encoded_video_path}"',
                     (
                         f"-to {encode_start_end_time[1]}"
                         if encode_start_end_time is not None
                         else ""
                     ),
+                    f'-i "{encoded_video_path}"',
                     (
                         f"-ss {source_start_end_time[0]}"
                         if source_start_end_time is not None
                         else ""
                     ),
-                    f'-i "{source_video_path}"',
                     (
                         f"-to {source_start_end_time[1]}"
                         if source_start_end_time is not None
                         else ""
                     ),
+                    f'-i "{source_video_path}"',
                     (
                         f'-lavfi libvmaf="n_threads={threads_to_use}:n_subsample={subsample}" -f null -'
                     ),
