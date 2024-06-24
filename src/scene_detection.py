@@ -1,9 +1,5 @@
 import scenedetect as sd
 from scenedetect.frame_timecode import FrameTimecode
-# from rich import print
-
-# Seemingly many errors with this library
-# Though as there are no runtime errors, it might be due to library implementation
 
 
 def find_scenes(
