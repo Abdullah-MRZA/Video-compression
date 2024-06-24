@@ -5,6 +5,9 @@ from typing import Literal
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+# import matplotlib.pyplot as plt
+# import numpy as np
+
 # import pandas as pd
 # import matplotlib_graphs
 
@@ -28,6 +31,8 @@ from plotly.subplots import make_subplots
 # fig = px.line(df, x="year", y="lifeExp", color="country")
 # fig.write_image(".png")
 
+# pyright: ignore[reportUnknownMemberType]
+
 
 class linegraph_image:
     def __init__(
@@ -44,6 +49,7 @@ class linegraph_image:
         self.title_of_graph = title_of_graph
         self.fileformat = fileformat
         self.x_axis_name = x_axis_name
+        self.save_data_to_file = save_data_to_file
 
     def __enter__(self):
         return self
@@ -81,7 +87,47 @@ class linegraph_image:
         if self.x_axis_name is not None:
             _ = self.fig.update_xaxes(title_text=self.x_axis_name)
 
-        if save_data_to_file:
+        if self.save_data_to_file:
             self.fig.write_image(self.filename + "." + self.fileformat)
         else:
             self.fig.show()
+
+
+# class matplotlib_graphs:
+#     def __init__(
+#         self, filename_without_extension: str, filename_extension: Literal["png", "pdf"]
+#     ) -> None:
+#         self.fig, self.ax = plt.subplots()
+#
+#     def __enter__(self):
+#         return self
+#
+#     def add_linegraph(
+#         self, x_axis_data: list[float | int], y_axis_data: list[float | int]
+#     ):
+#         self.ax.plot(x_axis_data, y_axis_data)
+#
+#     def __exit__(
+#         self,
+#         exc_type: type[BaseException] | None,
+#         exc_value: BaseException | None,
+#         exc_traceback: TracebackType | None,
+#     ) -> None:
+#         self.plt.savefig(filename_without_extension + "." + filename_extension)
+#
+#     x = np.array([1, 2, 3, 4])
+#     y = x * 2
+#
+#     # first plot with X and Y data
+#     plt.plot(x, y)
+#
+#     x1 = [2, 4, 6, 8]
+#     y1 = [3, 5, 7, 9]
+#
+#     # second plot with x1 and y1 data
+#     plt.plot(x1, y1, "-.")
+#
+#     plt.xlabel("X-axis data")
+#     plt.ylabel("Y-axis data")
+#     plt.title("multiple plots")
+#     plt.show()

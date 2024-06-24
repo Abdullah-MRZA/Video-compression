@@ -13,7 +13,7 @@ class Compress_video:
         input_filename_with_extension: str,
         ffmpeg_codec_information: ffmpeg.video,
         heuristic_type: ffmpeg_heuristics.heuristic,
-        output_filename: str | None = None,
+        output_filename_with_extension: str | None = None,
         # start_time_seconds: int = 0,
         # end_time_seconds: int = 0,
         crop_black_bars: bool = True,
@@ -24,6 +24,7 @@ class Compress_video:
         extra_current_crf_itterate_amount: int = 1,
         delete_tempoary_files: bool = True,
         scene_detection_threshold: float = 27.0,
+        recombine_audio_from_input_file: bool = True,
     ):
         """
         This does practically all of the calculations
@@ -37,6 +38,7 @@ class Compress_video:
             threshold=scene_detection_threshold,
         )
         print(f"{video_scenes=}")
+        print(f"Total Scenes in input file: {len(video_scenes[0])}")
 
         video_data_crf_heuristic: list[tuple[int, float]] = []
 
@@ -88,16 +90,37 @@ class Compress_video:
         # graph = graph_generate.linegraph()
         # graph.add_linegraph()
 
-        if output_filename is None:
-            output_filename = f"RENDERED - {input_filename_with_extension}"
+        if output_filename_with_extension is None:
+            output_filename_with_extension = (
+                f"RENDERED - {input_filename_with_extension}"
+            )
 
         ffmpeg.concatenate_video_files(
             [
                 f"{x}-{input_filename_with_extension}"
                 for x in range(len(video_scenes[0]))
             ],
-            output_filename,
+            output_filename_with_extension,
         )
+
+        if recombine_audio_from_input_file:
+            _ = os.system(
+                " ".join(
+                    [
+                        ffmpeg_path,
+                        f"-i {output_filename_with_extension}",
+                        f"-i {input_filename_with_extension}",
+                        "-c copy",
+                        "-map 0:v:1",
+                        "-map 1:a:1",
+                        f"TEMP-{output_filename_with_extension}",
+                    ]
+                )
+            )
+            os.remove(output_filename_with_extension)
+            os.rename(
+                f"TEMP-{output_filename_with_extension}", output_filename_with_extension
+            )
 
         if delete_tempoary_files:
             for x in range(len(video_scenes)):

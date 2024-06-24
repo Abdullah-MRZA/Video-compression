@@ -13,13 +13,14 @@ def main() -> None:
 
     target_video_quality.Compress_video.compress_video(
         input_filename_with_extension=video_path,
-        output_filename="OUTPUT FILE.mp4",
-        # ffmpeg_codec_information=ffmpeg.H264(preset="ultrafast"),
-        ffmpeg_codec_information=ffmpeg.H264(preset="slower"),
+        output_filename_with_extension="OUTPUT FILE.mkv",
+        # ffmpeg_codec_information=ffmpeg.H264(preset="ultrafast"), # 'fast' prototyping
+        ffmpeg_codec_information=ffmpeg.SVTAV1(preset=8),
         heuristic_type=ffmpeg_heuristics.VMAF(target_score=90),
         crop_black_bars=False,
         extra_current_crf_itterate_amount=1,  # probably speeds up by a very small amount
         scene_detection_threshold=40,  # 27
+        recombine_audio_from_input_file=True,
     )
 
 

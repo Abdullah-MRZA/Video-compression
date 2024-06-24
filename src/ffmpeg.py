@@ -149,11 +149,11 @@ class FfmpegCommand:
             f'-i "{self.input_filename}"',
             f"-ss {self.start_time_seconds}",  # -ss After is **very important** for accuracy!!
             f"-to {self.end_time_seconds}",
+            *self.codec_information.to_subprocess_command(),
             "-an",
             f"-pix_fmt {self.bit_depth}",
             "-y",
             f"-crf {crf_value}",
-            *self.codec_information.to_subprocess_command(),
             # f'"intermediate-{self.output_filename}"',
             f'"{self.output_filename}"'
             if override_output_file_name is None
