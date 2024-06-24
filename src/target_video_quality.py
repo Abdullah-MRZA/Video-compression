@@ -103,28 +103,34 @@ class Compress_video:
             output_filename_with_extension,
         )
 
-        if recombine_audio_from_input_file:
-            _ = os.system(
-                " ".join(
-                    [
-                        ffmpeg_path,
-                        f"-i {output_filename_with_extension}",
-                        f"-i {input_filename_with_extension}",
-                        "-c copy",
-                        "-map 0:v:1",
-                        "-map 1:a:1",
-                        f"TEMP-{output_filename_with_extension}",
-                    ]
-                )
-            )
-            os.remove(output_filename_with_extension)
-            os.rename(
-                f"TEMP-{output_filename_with_extension}", output_filename_with_extension
-            )
-
         if delete_tempoary_files:
             for x in range(len(video_scenes)):
                 os.remove(f"{x}-{input_filename_with_extension}")
+
+        if recombine_audio_from_input_file:
+            if ffmpeg_heuristics.ffprobe_information.check_contains_any_audio(
+                input_filename_with_extension, "ffprobe"
+            ):
+                _ = os.system(
+                    " ".join(
+                        [
+                            ffmpeg_path,
+                            f"-i {output_filename_with_extension}",
+                            f"-i {input_filename_with_extension}",
+                            "-c copy",
+                            "-map 0:v:1",
+                            "-map 1:a:1",
+                            f"TEMP-{output_filename_with_extension}",
+                        ]
+                    )
+                )
+                os.remove(output_filename_with_extension)
+                os.rename(
+                    f"TEMP-{output_filename_with_extension}",
+                    output_filename_with_extension,
+                )
+            else:
+                print("NOTICE: INPUT FILE CONTAINED NO AUDIO!! (no audio to transfer)")
 
     @staticmethod
     def _compress_video_part(

@@ -133,5 +133,21 @@ def crop_black_bars(source_video_path: str) -> str:
     return data.rsplit(maxsplit=1)[-1]
 
 
+class ffprobe_information:
+    @staticmethod
+    def check_contains_any_audio(
+        input_filename_with_extension: str, ffprobe_path: str
+    ) -> bool:
+        """Determines if the input file contains audio (is this robust??)"""
+        ffprobe_output = subprocess.getoutput(
+            f"{ffprobe_path} {input_filename_with_extension}"
+        )
+        return any(
+            True
+            for x in ffprobe_output.splitlines()
+            if x.strip().startswith("Stream") and "Audio" in x
+        )
+
+
 # TESTS:
 # print(VMAF(target_score=90).overall("test.mp4", "lowquality.mp4"))

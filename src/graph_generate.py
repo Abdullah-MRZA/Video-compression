@@ -61,7 +61,7 @@ class linegraph_image:
         name: str,
         mode: Literal["lines", "lines+markers"],
         on_left_right_side: Literal["left", "right"],
-        # testing_y_axis_range: None | dict[str, list[int]] = None,
+        # testing_y_axis_range: None | tuple[int, int] = None,
     ) -> None:
         _ = self.fig.add_trace(
             go.Scatter(
@@ -72,8 +72,12 @@ class linegraph_image:
             ),
             secondary_y=(on_left_right_side == "right"),
         )
+
+        # changing range of y axis: https://stackoverflow.com/questions/55704058/set-the-range-of-the-y-axis-in-plotly
         _ = self.fig.update_yaxes(
-            title_text=name, secondary_y=(on_left_right_side == "right")
+            title_text=name,
+            secondary_y=(on_left_right_side == "right"),
+            range=[0, 100],  # check if works
         )
 
     def __exit__(
