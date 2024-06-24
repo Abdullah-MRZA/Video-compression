@@ -73,6 +73,7 @@ class H264:
         "psnr",
         "ssim",
     ] = None
+    faststart: bool = True
 
     def to_subprocess_command(self) -> list[str]:
         command = [
@@ -82,6 +83,9 @@ class H264:
 
         if self.tune is not None:
             command.append(f"-tune {self.tune}")
+
+        if self.faststart:
+            command.append("-movflags +faststart")
 
         return command
 

@@ -21,7 +21,7 @@ class VMAF:
         source_start_end_time: None | tuple[str, str] = None,
         encode_start_end_time: None | tuple[str, str] = None,
         ffmpeg_path: str = "ffmpeg",
-        threads_to_use: int = 5,
+        threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
     ) -> float:
         ffmpeg_output = subprocess.getoutput(
