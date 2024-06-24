@@ -13,7 +13,7 @@ def main() -> None:
 
     target_video_quality.Compress_video.compress_video(
         input_filename_with_extension=video_path,
-        output_filename_with_extension="OUTPUT_FILE.mkv",
+        output_filename_with_extension="OUTPUT_FILE.mkv",  # reccomended MKV
         ffmpeg_codec_information=ffmpeg.H264(
             preset="ultrafast", faststart=False
         ),  # 'fast' prototyping
@@ -21,8 +21,8 @@ def main() -> None:
         heuristic_type=ffmpeg_heuristics.VMAF(target_score=90),
         crop_black_bars=False,
         extra_current_crf_itterate_amount=1,  # probably speeds up by a **very small** amount
-        scene_detection_threshold=40,  # 27
-        recombine_audio_from_input_file=False,  # need to detect if source has audio
+        scene_detection_threshold=27,  # 27 or 40
+        recombine_audio_from_input_file=True,  # need to detect if source has audio
         delete_tempoary_files=True,
     )
 

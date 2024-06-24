@@ -76,14 +76,16 @@ class Compress_video:
                 y_data=[x[0] for x in video_data_crf_heuristic],
                 name="CRF",
                 mode="lines+markers",
-                on_left_right_side="left",
+                on_left_right_side="right",
+                y_axis_range=ffmpeg_codec_information.ACCEPTED_CRF_RANGE,
             )
             graph.add_linegraph(
                 x_data=[x[0] for x in video_scenes[1]],
                 y_data=[x[1] for x in video_data_crf_heuristic],
                 name=heuristic_type.NAME,
                 mode="lines+markers",
-                on_left_right_side="right",
+                on_left_right_side="left",
+                y_axis_range=heuristic_type.RANGE,
                 # testing_y_axis_range=dict(range=[0, 100]),
             )
 

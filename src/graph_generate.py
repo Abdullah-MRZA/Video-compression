@@ -61,7 +61,7 @@ class linegraph_image:
         name: str,
         mode: Literal["lines", "lines+markers"],
         on_left_right_side: Literal["left", "right"],
-        # testing_y_axis_range: None | tuple[int, int] = None,
+        y_axis_range: range,
     ) -> None:
         _ = self.fig.add_trace(
             go.Scatter(
@@ -77,7 +77,10 @@ class linegraph_image:
         _ = self.fig.update_yaxes(
             title_text=name,
             secondary_y=(on_left_right_side == "right"),
-            range=[0, 100],  # check if works
+            range=[
+                min(y_axis_range),
+                max(y_axis_range),
+            ],  # check if works (ALSO CHECK IF CAN BE REPLACED WITH NONE)
         )
 
     def __exit__(

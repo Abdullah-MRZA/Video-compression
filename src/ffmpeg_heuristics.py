@@ -13,6 +13,7 @@ class VMAF:
 
     target_score: int
     NAME: str = "VMAF"
+    RANGE: range = range(0, 100 + 1)
 
     def overall(
         self,
@@ -108,13 +109,25 @@ class VMAF:
 #     ) -> int: ...
 
 
+# @dataclass()
 # class ssimulacra2_rs:
+#     """
+#     A very good one apparently
+#     """
+#
+#     target_score: int
+#     NAME: str = "ssimulacra2_rs"
+#     RANGE: range = range(0, 100 + 1)  # CHECK IF THIS IS TRUE
+#
 #     def overall(
 #         self,
 #         source_video_path: str,
 #         encoded_video_path: str,
 #         ffmpeg_path: str = "ffmpeg",
-#     ) -> int: ...
+#         threads_to_use: int = 4,
+#     ) -> int:
+#         ...
+#         # https://wiki.x266.mov/docs/metrics/SSIMULACRA2
 #
 #     def throughout_video(
 #         self, source_video_path: str, encoded_video_path: str
