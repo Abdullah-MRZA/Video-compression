@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import os
+import json
 import subprocess
 # from rich import print
 
@@ -66,15 +68,63 @@ class VMAF:
             [x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]
         )
 
-    # def throughout_video(
-    #     self,
-    #     source_video_path: str,
-    #     encoded_video_path: str,
-    #     ffmpeg_path: str = "ffmpeg",
-    # ) -> int:
-    #     ffmpeg_output = subprocess.getoutput(
-    #         f'{ffmpeg_path} -hide_banner -loglevel error -i "{encoded_video_path}" -i "{source_video_path}" -lavfi libvmaf -f null -'
-    #     )
+    # ffmpeg -i input_small.mkv -i input_small.mkv -lavfi libvmaf="n_threads=4:n_subsample=1:log_fmt=json:log_path=log.json" -f null -
+    # ^^^
+    def throughout_video(
+        self,
+        source_video_path: str,
+        encoded_video_path: str,
+        source_start_end_time: None | tuple[str, str] = None,
+        encode_start_end_time: None | tuple[str, str] = None,
+        ffmpeg_path: str = "ffmpeg",
+        threads_to_use: int = 6,
+        subsample: int = 2,  # Calculate per X frames
+    ) -> list[float]:
+        _ = subprocess.getoutput(
+            " ".join(
+                [
+                    ffmpeg_path,
+                    "-hide_banner",
+                    (
+                        f"-ss {encode_start_end_time[0]}"
+                        if encode_start_end_time is not None
+                        else ""
+                    ),
+                    (
+                        f"-to {encode_start_end_time[1]}"
+                        if encode_start_end_time is not None
+                        else ""
+                    ),
+                    f'-i "{encoded_video_path}"',
+                    (
+                        f"-ss {source_start_end_time[0]}"
+                        if source_start_end_time is not None
+                        else ""
+                    ),
+                    (
+                        f"-to {source_start_end_time[1]}"
+                        if source_start_end_time is not None
+                        else ""
+                    ),
+                    f'-i "{source_video_path}"',
+                    (
+                        f'-lavfi libvmaf="n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path=log.json" -y -f null -'
+                    ),
+                ]
+            )
+        )
+
+        with open("log.json", "r") as file:
+            json_of_file = json.loads(file.read())
+
+            vmaf_data: list[float] = []
+
+            for frame in json_of_file["frames"]:
+                vmaf_data.append(frame["metrics"]["vmaf"])
+
+        # print(f"{vmaf_data=}")
+        os.remove("log.json")
+        return vmaf_data
 
 
 # class SSIM:
@@ -109,29 +159,40 @@ class VMAF:
 #     ) -> int: ...
 
 
-# @dataclass()
-# class ssimulacra2_rs:
-#     """
-#     A very good one apparently
-#     """
-#
-#     target_score: int
-#     NAME: str = "ssimulacra2_rs"
-#     RANGE: range = range(0, 100 + 1)  # CHECK IF THIS IS TRUE
-#
-#     def overall(
-#         self,
-#         source_video_path: str,
-#         encoded_video_path: str,
-#         ffmpeg_path: str = "ffmpeg",
-#         threads_to_use: int = 4,
-#     ) -> int:
-#         ...
-#         # https://wiki.x266.mov/docs/metrics/SSIMULACRA2
-#
-#     def throughout_video(
-#         self, source_video_path: str, encoded_video_path: str
-#     ) -> int: ...
+@dataclass()
+class ssimulacra2_rs:
+    """
+    A very good one apparently
+
+    - 30 = low quality. This corresponds to the p10 worst output of mozjpeg -quality 30.
+
+    - 50 = medium quality. This corresponds to the average output of cjxl -q 40 or
+            mozjpeg -quality 40, or the p10 output of cjxl -q 50 or mozjpeg -quality 60.
+
+    - 70 = high quality. This corresponds to the average output of cjxl -q 65 or
+            mozjpeg -quality 70, p10 output of cjxl -q 75 or mozjpeg -quality 80.
+
+    - 90 = very high quality. Likely impossible to distinguish from the original when viewed
+            at 1:1 from a normal viewing distance. This corresponds to the average output
+            of mozjpeg -quality 95 or the p10 output of cjxl -q
+    """
+
+    target_score: int
+    NAME: str = "ssimulacra2_rs"
+    RANGE: range = range(0, 100 + 1)  # NOTE this is MOSTLY true
+
+    # https://wiki.x266.mov/docs/metrics/SSIMULACRA2
+    def overall(
+        self,
+        source_video_path: str,
+        encoded_video_path: str,
+        ffmpeg_path: str = "ffmpeg",
+        threads_to_use: int = 4,
+    ) -> int: ...
+
+    def throughout_video(
+        self, source_video_path: str, encoded_video_path: str
+    ) -> int: ...
 
 
 def crop_black_bars(source_video_path: str) -> str:

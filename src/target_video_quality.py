@@ -66,8 +66,21 @@ class Compress_video:
                 (optimal_crf_value, heuristic_value_of_encode)
             )
 
+        if output_filename_with_extension is None:
+            output_filename_with_extension = (
+                f"RENDERED - {input_filename_with_extension}"
+            )
+
+        ffmpeg.concatenate_video_files(
+            [
+                f"{x}-{input_filename_with_extension}"
+                for x in range(len(video_scenes[0]))
+            ],
+            output_filename_with_extension,
+        )
+
         with graph_generate.linegraph_image(
-            filename_without_extension="Video_information",
+            filename_without_extension="Video_information_per_scene",
             title_of_graph=f"CRF and {heuristic_type.NAME} throughout video",
             x_axis_name="Frames",
         ) as graph:
@@ -81,7 +94,12 @@ class Compress_video:
             )
             graph.add_linegraph(
                 x_data=[x[0] for x in video_scenes[1]],
-                y_data=[x[1] for x in video_data_crf_heuristic],
+                # y_data=[x[1] for x in video_data_crf_heuristic], # This is overall from the function of each splitvideo
+                y_data=heuristic_type.throughout_video(
+                    source_video_path=input_filename_with_extension,
+                    encoded_video_path=output_filename_with_extension,
+                    ffmpeg_path=ffmpeg_path,
+                ),
                 name=heuristic_type.NAME,
                 mode="lines+markers",
                 on_left_right_side="left",
@@ -91,19 +109,6 @@ class Compress_video:
 
         # graph = graph_generate.linegraph()
         # graph.add_linegraph()
-
-        if output_filename_with_extension is None:
-            output_filename_with_extension = (
-                f"RENDERED - {input_filename_with_extension}"
-            )
-
-        ffmpeg.concatenate_video_files(
-            [
-                f"{x}-{input_filename_with_extension}"
-                for x in range(len(video_scenes[0]))
-            ],
-            output_filename_with_extension,
-        )
 
         if delete_tempoary_files:
             for x in range(len(video_scenes)):
@@ -120,8 +125,8 @@ class Compress_video:
                             f"-i {output_filename_with_extension}",
                             f"-i {input_filename_with_extension}",
                             "-c copy",
-                            "-map 0:v:1",
-                            "-map 1:a:1",
+                            "-map 0:v:0",  # THERE IS BUG HERE........
+                            "-map 1:a",
                             f"TEMP-{output_filename_with_extension}",
                         ]
                     )
@@ -194,13 +199,14 @@ class Compress_video:
 
                 all_heuristic_crf_data.update({current_crf_heuristic: current_crf})
 
-                # ASSUMPTION THAT BIGGER IS BETTER (WARNING)
-                if current_crf_heuristic > heuristic_type.target_score:
+                # ASSUMPTION THAT BIGGER IS BETTER (WARNING --> MAY NOT ALWAYS BE THE CASE??)
+                if int(current_crf_heuristic) == heuristic_type.target_score:
+                    print("EXACT HEURISTIC VALUE MATCHED!")
+                    break  # very unlikely to get here
+                elif current_crf_heuristic > heuristic_type.target_score:
                     bottom_crf_value = current_crf
                 elif current_crf_heuristic < heuristic_type.target_score:
                     top_crf_value = current_crf
-                elif current_crf_heuristic == heuristic_type.target_score:
-                    break  # very unlikely to get here
 
                 print(
                     f"    FINISHED RUNNING {current_crf} -> {current_crf_heuristic} compared to {heuristic_type.target_score} | {all_heuristic_crf_data}"

@@ -43,9 +43,9 @@ class linegraph_image:
         x_axis_name: str | None = None,
         save_data_to_file: bool = True,
     ) -> None:
-        # self.fig = go.Figure()
+        self.fig = go.Figure()
         self.fig = make_subplots(specs=[[{"secondary_y": True}]])
-        self.filename = filename_without_extension
+        self.filename_without_extension = filename_without_extension
         self.title_of_graph = title_of_graph
         self.fileformat = fileformat
         self.x_axis_name = x_axis_name
@@ -95,7 +95,9 @@ class linegraph_image:
             _ = self.fig.update_xaxes(title_text=self.x_axis_name)
 
         if self.save_data_to_file:
-            self.fig.write_image(self.filename + "." + self.fileformat)
+            self.fig.write_image(
+                self.filename_without_extension + "." + self.fileformat
+            )
         else:
             self.fig.show()
 

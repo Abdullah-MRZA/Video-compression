@@ -187,30 +187,12 @@ def concatenate_video_files(
     NOTE THE CODEC OF THE VIDEO FILES MUST BE THE SAME!
     This combines the video files together
     """
-    # This old method used the concat protocol
-
-    # concatenated_list_of_video_files = " ".join(
-    #     f'-i "{x}"' for x in list_of_video_files
-    # )
-    # concatenated_list_of_video_files_filter = "".join(
-    #     f"[{x}:v:0]" for x in range(len(list_of_video_files))
-    # )
-    #
-    # print(
-    #     f'ffmpeg {concatenated_list_of_video_files} -filter_complex "{concatenated_list_of_video_files_filter}concat=n={len(list_of_video_files)}:v=1:[outv]" -map [outv] -c copy "{output_filename}"'
-    # )
-    # _ = os.system(
-    #     f'ffmpeg {concatenated_list_of_video_files} -filter_complex "{concatenated_list_of_video_files_filter}concat=n={len(list_of_video_files)}:v=1:[outv]" -map [outv] -c copy "{output_filename}"'
-    # )
-
-    # ffmpeg -i 1-test.mp4 -i 0-test.mp4 -i 0-test.mp4 -filter_complex "[0:v:0][1:v:0][2:v:0]concat=n=3:v=1:[outv]" -map "[outv]" output.mkv
-
     # New method using concat demuxer
     with open("video_list.txt", "w") as file:
         _ = file.write("\n".join(f"file '{x}'" for x in list_of_video_files))
 
     _ = os.system(
-        f'ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"'
+        f'ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"'  # -hide_banner -loglevel error
     )
 
     os.remove("video_list.txt")
