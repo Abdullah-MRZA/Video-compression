@@ -115,7 +115,10 @@ class VMAF:
         )
 
         with open("log.json", "r") as file:
-            json_of_file = json.loads(file.read())
+            json_of_file: dict[str, list[dict[str, dict[str, int]]]] = json.loads(
+                file.read()
+            )
+            # This type-hints are not accurate --> but works for this
 
             vmaf_data: list[float] = []
 
@@ -187,8 +190,13 @@ class ssimulacra2_rs:
         source_video_path: str,
         encoded_video_path: str,
         ffmpeg_path: str = "ffmpeg",
-        threads_to_use: int = 4,
-    ) -> int: ...
+        threads_to_use: int = 2,  # "scales badly"
+    ) -> int:
+        ssimulacra2_rs_point = subprocess.getoutput(
+            f"{ffmpeg_path} video {source_video_path} {encoded_video_path} -f {threads_to_use}"
+        )
+        # TODO WARNING CHECK HOW THE OUTPUT IS FORMATTED
+        ...
 
     def throughout_video(
         self, source_video_path: str, encoded_video_path: str
