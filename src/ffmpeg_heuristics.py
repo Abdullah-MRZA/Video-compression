@@ -199,7 +199,11 @@ class ssimulacra2_rs:
         ...
 
     def throughout_video(
-        self, source_video_path: str, encoded_video_path: str
+        self,
+        source_video_path: str,
+        encoded_video_path: str,
+        ffmpeg_path: str = "ffmpeg",
+        threads_to_use: int = 2,  # "scales badly"
     ) -> int: ...
 
 
