@@ -31,8 +31,6 @@ from plotly.subplots import make_subplots
 # fig = px.line(df, x="year", y="lifeExp", color="country")
 # fig.write_image(".png")
 
-# pyright: ignore[reportUnknownMemberType]
-
 
 class linegraph_image:
     def __init__(
