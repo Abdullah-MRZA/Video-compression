@@ -20,7 +20,7 @@ class Compress_video:
         bit_depth: ffmpeg.bitdepth = "yuv420p10le",
         keyframe_placement: int | None = 200,
         ffmpeg_path: str = "ffmpeg",
-        # draw_matplotlib_graph: bool = True,
+        # draw_graph: bool = True,
         extra_current_crf_itterate_amount: int = 1,
         delete_tempoary_files: bool = True,
         scene_detection_threshold: float = 27.0,
@@ -33,12 +33,22 @@ class Compress_video:
         This also recombines the video at the end
         """
 
+        if output_filename_with_extension is None:
+            output_filename_with_extension = (
+                f"RENDERED - {input_filename_with_extension.rsplit('.', 1)[0]}.mkv"
+            )
+
+        def TEMPORARY_FILENAMES(x: int) -> str:
+            """Returns the name of an intermediate file, in a centralised place"""
+            return f"{x}-part.mkv"
+
         video_scenes = scene_detection.find_scenes(
             video_path=input_filename_with_extension,
             threshold=scene_detection_threshold,
         )
+
         print(f"{video_scenes=}")
-        print(f"Total Scenes in input file: {len(video_scenes[0])}")
+        print(f"Total Scenes in input file: {len(video_scenes[0])}\n")
 
         video_data_crf_heuristic: list[tuple[int, float]] = []
 
@@ -50,7 +60,7 @@ class Compress_video:
             optimal_crf_value, heuristic_value_of_encode = (
                 Compress_video._compress_video_part(
                     input_filename=input_filename_with_extension,
-                    output_filename=f"{i}-{input_filename_with_extension}",
+                    output_filename=TEMPORARY_FILENAMES(i),  # changed to always use mkv
                     part_beginning=scenes[0],
                     part_end=scenes[1],
                     heuristic_type=heuristic_type,
@@ -66,16 +76,8 @@ class Compress_video:
                 (optimal_crf_value, heuristic_value_of_encode)
             )
 
-        if output_filename_with_extension is None:
-            output_filename_with_extension = (
-                f"RENDERED - {input_filename_with_extension}"
-            )
-
         ffmpeg.concatenate_video_files(
-            [
-                f"{x}-{input_filename_with_extension}"
-                for x in range(len(video_scenes[0]))
-            ],
+            [TEMPORARY_FILENAMES(x) for x in range(len(video_scenes[0]))],
             output_filename_with_extension,
         )
 

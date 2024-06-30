@@ -27,42 +27,39 @@ class VMAF:
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
     ) -> float:
-        ffmpeg_output = subprocess.getoutput(
-            " ".join(
-                [
-                    ffmpeg_path,
-                    "-hide_banner",
-                    (
-                        f"-ss {encode_start_end_time[0]}"
-                        if encode_start_end_time is not None
-                        else ""
-                    ),
-                    (
-                        f"-to {encode_start_end_time[1]}"
-                        if encode_start_end_time is not None
-                        else ""
-                    ),
-                    f'-i "{encoded_video_path}"',
-                    (
-                        f"-ss {source_start_end_time[0]}"
-                        if source_start_end_time is not None
-                        else ""
-                    ),
-                    (
-                        f"-to {source_start_end_time[1]}"
-                        if source_start_end_time is not None
-                        else ""
-                    ),
-                    f'-i "{source_video_path}"',
-                    (
-                        f'-lavfi libvmaf="n_threads={threads_to_use}:n_subsample={subsample}" -f null -'
-                    ),
-                ]
-            )
+        print("Running FFMPEG COMMAND for vmaf")
+        ffmpeg_command: list[str] = [ffmpeg_path, "-hide_banner"]
+
+        if encode_start_end_time is not None:
+            ffmpeg_command.extend(["-ss", encode_start_end_time[0]])
+            ffmpeg_command.extend(["-to", encode_start_end_time[1]])
+        ffmpeg_command.extend(["-i", encoded_video_path])
+
+        if source_start_end_time is not None:
+            ffmpeg_command.extend(["-ss", source_start_end_time[0]])
+            ffmpeg_command.extend(["-to", source_start_end_time[1]])
+        ffmpeg_command.extend(["-i", source_video_path])
+
+        ffmpeg_command.extend(
+            [
+                "-lavfi",
+                f'libvmaf="n_threads={threads_to_use}:n_subsample={subsample}"',
+                "-f",
+                "null",
+                "-",
+            ]
         )
+
+        try:
+            ffmpeg_output = subprocess.getoutput(ffmpeg_command)
+        except FileNotFoundError as e:
+            print("WARNING: FFMPEG NOT FOUND ON SYSTEM!!")
+            raise e
+
         # This approach *could* be error prone to changes in FFMPEG?
         print(
-            f"{[x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]=}"
+            # f"{[x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]=}"
+            ffmpeg_output
         )
         return float(
             [x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]
@@ -162,49 +159,49 @@ class VMAF:
 #     ) -> int: ...
 
 
-@dataclass()
-class ssimulacra2_rs:
-    """
-    A very good one apparently
-
-    - 30 = low quality. This corresponds to the p10 worst output of mozjpeg -quality 30.
-
-    - 50 = medium quality. This corresponds to the average output of cjxl -q 40 or
-            mozjpeg -quality 40, or the p10 output of cjxl -q 50 or mozjpeg -quality 60.
-
-    - 70 = high quality. This corresponds to the average output of cjxl -q 65 or
-            mozjpeg -quality 70, p10 output of cjxl -q 75 or mozjpeg -quality 80.
-
-    - 90 = very high quality. Likely impossible to distinguish from the original when viewed
-            at 1:1 from a normal viewing distance. This corresponds to the average output
-            of mozjpeg -quality 95 or the p10 output of cjxl -q
-    """
-
-    target_score: int
-    NAME: str = "ssimulacra2_rs"
-    RANGE: range = range(0, 100 + 1)  # NOTE this is MOSTLY true
-
-    # https://wiki.x266.mov/docs/metrics/SSIMULACRA2
-    def overall(
-        self,
-        source_video_path: str,
-        encoded_video_path: str,
-        ffmpeg_path: str = "ffmpeg",
-        threads_to_use: int = 2,  # "scales badly"
-    ) -> int:
-        ssimulacra2_rs_point = subprocess.getoutput(
-            f"{ffmpeg_path} video {source_video_path} {encoded_video_path} -f {threads_to_use}"
-        )
-        # TODO WARNING CHECK HOW THE OUTPUT IS FORMATTED
-        ...
-
-    def throughout_video(
-        self,
-        source_video_path: str,
-        encoded_video_path: str,
-        ffmpeg_path: str = "ffmpeg",
-        threads_to_use: int = 2,  # "scales badly"
-    ) -> int: ...
+# @dataclass()
+# class ssimulacra2_rs:
+#     """
+#     A very good one apparently
+#
+#     - 30 = low quality. This corresponds to the p10 worst output of mozjpeg -quality 30.
+#
+#     - 50 = medium quality. This corresponds to the average output of cjxl -q 40 or
+#             mozjpeg -quality 40, or the p10 output of cjxl -q 50 or mozjpeg -quality 60.
+#
+#     - 70 = high quality. This corresponds to the average output of cjxl -q 65 or
+#             mozjpeg -quality 70, p10 output of cjxl -q 75 or mozjpeg -quality 80.
+#
+#     - 90 = very high quality. Likely impossible to distinguish from the original when viewed
+#             at 1:1 from a normal viewing distance. This corresponds to the average output
+#             of mozjpeg -quality 95 or the p10 output of cjxl -q
+#     """
+#
+#     target_score: int
+#     NAME: str = "ssimulacra2_rs"
+#     RANGE: range = range(0, 100 + 1)  # NOTE this is MOSTLY true
+#
+#     # https://wiki.x266.mov/docs/metrics/SSIMULACRA2
+#     def overall(
+#         self,
+#         source_video_path: str,
+#         encoded_video_path: str,
+#         ffmpeg_path: str = "ffmpeg",
+#         threads_to_use: int = 2,  # "scales badly"
+#     ) -> int:
+#         ssimulacra2_rs_point = subprocess.getoutput(
+#             f"{ffmpeg_path} video {source_video_path} {encoded_video_path} -f {threads_to_use}"
+#         )
+#         # TODO WARNING CHECK HOW THE OUTPUT IS FORMATTED
+#         ...
+#
+#     def throughout_video(
+#         self,
+#         source_video_path: str,
+#         encoded_video_path: str,
+#         ffmpeg_path: str = "ffmpeg",
+#         threads_to_use: int = 2,  # "scales badly"
+#     ) -> int: ...
 
 
 def crop_black_bars(source_video_path: str) -> str:

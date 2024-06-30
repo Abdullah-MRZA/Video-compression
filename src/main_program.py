@@ -12,7 +12,8 @@ def main() -> None:
     # check if FFMPEG is installed
 
     # video_path: str = "input_small.mkv"
-    video_path: str = "input_test.mkv"
+    # video_path: str = "input_test.mkv"
+    video_path: str = "input.mov"
 
     target_video_quality.Compress_video.compress_video(
         input_filename_with_extension=video_path,
