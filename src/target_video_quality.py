@@ -4,6 +4,7 @@ import ffmpeg
 import ffmpeg_heuristics
 import graph_generate
 import os
+import subprocess
 import scene_detection
 
 
@@ -25,6 +26,7 @@ class Compress_video:
         delete_tempoary_files: bool = True,
         scene_detection_threshold: float = 27.0,
         recombine_audio_from_input_file: bool = True,
+        # extra_ffmpeg_commands: str | None = None,
     ):
         """
         This does practically all of the calculations
@@ -37,6 +39,13 @@ class Compress_video:
             output_filename_with_extension = (
                 f"RENDERED - {input_filename_with_extension.rsplit('.', 1)[0]}.mkv"
             )
+
+        if crop_black_bars:  # Assumption is that the black bars don't change in size
+            crop_black_bars_size = ffmpeg_heuristics.crop_black_bars(
+                input_filename_with_extension
+            )
+        else:
+            crop_black_bars_size = None
 
         def TEMPORARY_FILENAMES(x: int) -> str:
             """Returns the name of an intermediate file, in a centralised place"""
@@ -64,7 +73,7 @@ class Compress_video:
                     part_beginning=scenes[0],
                     part_end=scenes[1],
                     heuristic_type=heuristic_type,
-                    crop_black_bars=crop_black_bars,
+                    crop_black_bars_size=crop_black_bars_size,
                     bit_depth=bit_depth,
                     keyframe_placement=keyframe_placement,
                     ffmpeg_codec_information=ffmpeg_codec_information,
@@ -113,31 +122,44 @@ class Compress_video:
         # graph.add_linegraph()
 
         if delete_tempoary_files:
-            for x in range(len(video_scenes)):
-                os.remove(f"{x}-{input_filename_with_extension}")
+            for x in range(len(video_scenes[0])):
+                try:
+                    os.remove(TEMPORARY_FILENAMES(x))
+                except FileNotFoundError:
+                    print("TEMP FILE NOT FOUND...  NOT DELETED")
 
         if recombine_audio_from_input_file:
+            # Do I need this check?
             if ffmpeg_heuristics.ffprobe_information.check_contains_any_audio(
                 input_filename_with_extension, "ffprobe"
             ):
-                _ = os.system(
-                    " ".join(
-                        [
-                            ffmpeg_path,
-                            f"-i {output_filename_with_extension}",
-                            f"-i {input_filename_with_extension}",
-                            "-c copy",
-                            "-map 0:v:0",  # THERE IS BUG HERE........
-                            "-map 1:a",
-                            f"TEMP-{output_filename_with_extension}",
-                        ]
+                try:
+                    _ = subprocess.run(
+                        " ".join(
+                            [
+                                ffmpeg_path,
+                                f"-i {output_filename_with_extension}",
+                                f"-i {input_filename_with_extension}",
+                                "-c copy",
+                                "-map 0:v:0",  # is there a bug here........?
+                                "-map 1:a",  # copy all audio
+                                f"TEMP-{output_filename_with_extension}",
+                            ]
+                        ),
+                        shell=True,
+                        check=True,
                     )
-                )
-                os.remove(output_filename_with_extension)
-                os.rename(
-                    f"TEMP-{output_filename_with_extension}",
-                    output_filename_with_extension,
-                )
+                    os.remove(output_filename_with_extension)
+                    os.rename(
+                        f"TEMP-{output_filename_with_extension}",
+                        output_filename_with_extension,
+                    )
+                except FileNotFoundError:
+                    print("File not found error for audio combination")
+                except subprocess.CalledProcessError:
+                    print(
+                        "Process failed because did not return a successful return code."
+                    )
             else:
                 print("NOTICE: INPUT FILE CONTAINED NO AUDIO!! (no audio to transfer)")
 
@@ -148,7 +170,7 @@ class Compress_video:
         part_beginning: str,
         part_end: str,
         heuristic_type: ffmpeg_heuristics.heuristic,
-        crop_black_bars: bool,
+        crop_black_bars_size: str | None,
         bit_depth: ffmpeg.bitdepth,
         keyframe_placement: int | None,
         ffmpeg_codec_information: ffmpeg.video,
@@ -162,7 +184,7 @@ class Compress_video:
         """
         # use a 'binary search' approach? Is this optimal? (doubt it, but definitely functional)
 
-        tempoary_video_file_name: str = f"TEMP-{input_filename}"
+        tempoary_video_file_name: str = "TEMPORARY-ENCODE.mkv"
 
         with ffmpeg.FfmpegCommand(
             input_filename=input_filename,
@@ -170,7 +192,7 @@ class Compress_video:
             codec_information=ffmpeg_codec_information,
             start_time_seconds=part_beginning,
             end_time_seconds=part_end,
-            crop_black_bars=crop_black_bars,
+            crop_black_bars_size=crop_black_bars_size,
             bit_depth=bit_depth,
             keyframe_placement=keyframe_placement,
             ffmpeg_path=ffmpeg_path,
@@ -225,7 +247,10 @@ class Compress_video:
             #     closest_crf_value_to_target_heuristic[1]
             # )
 
-            os.remove(tempoary_video_file_name)
+            try:
+                os.remove(tempoary_video_file_name)
+            except FileNotFoundError:
+                print(f"Failed to remove file '{tempoary_video_file_name}'")
 
             print(f"OPTIMAL CRF VALUE IS {closest_crf_value_to_target_heuristic}")
 

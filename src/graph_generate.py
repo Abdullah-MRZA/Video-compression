@@ -68,7 +68,7 @@ class linegraph_image:
 
         if self.save_data_to_file:
             self.fig.write_image(
-                self.filename_without_extension + "." + self.fileformat
+                f"{self.filename_without_extension}.{self.fileformat}", scale=3
             )
         else:
             self.fig.show()

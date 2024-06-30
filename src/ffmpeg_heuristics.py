@@ -50,16 +50,25 @@ class VMAF:
             ]
         )
 
+        print(f"FFMPEG COMMAND: {' '.join(ffmpeg_command)}")
         try:
-            ffmpeg_output = subprocess.getoutput(ffmpeg_command)
+            # ffmpeg_output = subprocess.run(ffmpeg_command).stdout
+            output_data = subprocess.run(
+                " ".join(ffmpeg_command), shell=True, check=True, capture_output=True
+            )
+            ffmpeg_output: str = output_data.stderr.decode()
+            # input(f"FFMPEG OUTPUT: {ffmpeg_output}")
         except FileNotFoundError as e:
             print("WARNING: FFMPEG NOT FOUND ON SYSTEM!!")
+            raise e
+        except subprocess.CalledProcessError as e:
+            print("Process failed because did not return a successful return code.")
             raise e
 
         # This approach *could* be error prone to changes in FFMPEG?
         print(
             # f"{[x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]=}"
-            ffmpeg_output
+            f"FFMPEG OUTPUT: {ffmpeg_output}"
         )
         return float(
             [x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]
@@ -123,7 +132,10 @@ class VMAF:
                 vmaf_data.append(frame["metrics"]["vmaf"])
 
         # print(f"{vmaf_data=}")
-        os.remove("log.json")
+        try:
+            os.remove("log.json")
+        except FileNotFoundError:
+            print("FileNotFoundError for removing log.json")
         return vmaf_data
 
 

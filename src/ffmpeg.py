@@ -1,9 +1,9 @@
-# import subprocess
+import subprocess
 import ffmpeg_heuristics
-import os
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Literal
+import os
 
 
 type video = SVTAV1 | H265 | H264
@@ -133,7 +133,7 @@ class FfmpegCommand:
     output_filename: str
     ffmpeg_path: str
 
-    crop_black_bars: bool
+    crop_black_bars_size: str | None
     bit_depth: bitdepth
     keyframe_placement: int | None
 
@@ -160,16 +160,15 @@ class FfmpegCommand:
             else override_output_file_name,
         ]
 
-        if self.crop_black_bars:
-            command.insert(
-                -1, f"-vf {ffmpeg_heuristics.crop_black_bars(self.input_filename)}"
-            )
+        if self.crop_black_bars_size is not None:
+            command.insert(-1, f"-vf {self.crop_black_bars_size}")
 
         if self.keyframe_placement is not None:
             command.insert(-1, f"-g {self.keyframe_placement}")
 
         print(" ".join(command))
-        _ = os.system(" ".join(command))
+        # _ = os.system(" ".join(command))
+        _ = subprocess.run(" ".join(command), shell=True, check=True)
 
     def __exit__(
         self,
@@ -191,8 +190,16 @@ def concatenate_video_files(
     with open("video_list.txt", "w") as file:
         _ = file.write("\n".join(f"file '{x}'" for x in list_of_video_files))
 
-    _ = os.system(
-        f'ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"'  # -hide_banner -loglevel error
+    # _ = os.system(
+    #     f'ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"'  # -hide_banner -loglevel error
+    # )
+    _ = subprocess.run(
+        f'ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"',
+        shell=True,
+        check=True,
     )
 
-    os.remove("video_list.txt")
+    try:
+        os.remove("video_list.txt")
+    except FileNotFoundError:
+        print("File Not found error: video_list.txt can't be deleted")
