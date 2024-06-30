@@ -1,4 +1,5 @@
 from rich import print
+from rich.console import console
 from rich.progress import track
 import ffmpeg
 import ffmpeg_heuristics
@@ -15,8 +16,10 @@ class Compress_video:
         ffmpeg_codec_information: ffmpeg.video,
         heuristic_type: ffmpeg_heuristics.heuristic,
         output_filename_with_extension: str | None = None,
-        # start_time_seconds: int = 0,
-        # end_time_seconds: int = 0,
+        # ...
+        start_time_seconds: int = 0,
+        end_time_seconds: int = 0,
+        # ..
         crop_black_bars: bool = True,
         bit_depth: ffmpeg.bitdepth = "yuv420p10le",
         keyframe_placement: int | None = 200,
@@ -51,10 +54,11 @@ class Compress_video:
             """Returns the name of an intermediate file, in a centralised place"""
             return f"{x}-part.mkv"
 
-        video_scenes = scene_detection.find_scenes(
-            video_path=input_filename_with_extension,
-            threshold=scene_detection_threshold,
-        )
+        with console.status("Calculating scenes"):
+            video_scenes = scene_detection.find_scenes(
+                video_path=input_filename_with_extension,
+                threshold=scene_detection_threshold,
+            )
 
         print(f"{video_scenes=}")
         print(f"Total Scenes in input file: {len(video_scenes[0])}\n")
@@ -85,83 +89,89 @@ class Compress_video:
                 (optimal_crf_value, heuristic_value_of_encode)
             )
 
-        ffmpeg.concatenate_video_files(
-            [TEMPORARY_FILENAMES(x) for x in range(len(video_scenes[0]))],
-            output_filename_with_extension,
-        )
+        with console.status("Concatenating temporary video files to final file"):
+            ffmpeg.concatenate_video_files(
+                [TEMPORARY_FILENAMES(x) for x in range(len(video_scenes[0]))],
+                output_filename_with_extension,
+            )
 
-        with graph_generate.linegraph_image(
-            filename_without_extension="Video_information_per_scene",
-            title_of_graph=f"CRF and {heuristic_type.NAME} throughout video",
-            x_axis_name="Frames",
-        ) as graph:
-            graph.add_linegraph(
-                x_data=[x[0] for x in video_scenes[1]],
-                y_data=[x[0] for x in video_data_crf_heuristic],
-                name="CRF",
-                mode="lines+markers",
-                on_left_right_side="right",
-                y_axis_range=ffmpeg_codec_information.ACCEPTED_CRF_RANGE,
-            )
-            graph.add_linegraph(
-                x_data=[x[0] for x in video_scenes[1]],
-                # y_data=[x[1] for x in video_data_crf_heuristic], # This is overall from the function of each splitvideo
-                y_data=heuristic_type.throughout_video(
-                    source_video_path=input_filename_with_extension,
-                    encoded_video_path=output_filename_with_extension,
-                    ffmpeg_path=ffmpeg_path,
-                ),
-                name=heuristic_type.NAME,
-                mode="lines+markers",
-                on_left_right_side="left",
-                y_axis_range=heuristic_type.RANGE,
-                # testing_y_axis_range=dict(range=[0, 100]),
-            )
+        with console.status("Generating graph of data"):
+            with graph_generate.linegraph_image(
+                filename_without_extension="Video_information_per_scene",
+                title_of_graph=f"CRF and {heuristic_type.NAME} throughout video",
+                x_axis_name="Frames",
+            ) as graph:
+                graph.add_linegraph(
+                    x_data=[x[0] for x in video_scenes[1]],
+                    y_data=[x[0] for x in video_data_crf_heuristic],
+                    name="CRF",
+                    mode="lines+markers",
+                    on_left_right_side="right",
+                    y_axis_range=ffmpeg_codec_information.ACCEPTED_CRF_RANGE,
+                )
+                graph.add_linegraph(
+                    x_data=[x[0] for x in video_scenes[1]],
+                    # y_data=[x[1] for x in video_data_crf_heuristic], # This is overall from the function of each splitvideo
+                    y_data=heuristic_type.throughout_video(
+                        source_video_path=input_filename_with_extension,
+                        encoded_video_path=output_filename_with_extension,
+                        ffmpeg_path=ffmpeg_path,
+                    ),
+                    name=heuristic_type.NAME,
+                    mode="lines+markers",
+                    on_left_right_side="left",
+                    y_axis_range=heuristic_type.RANGE,
+                    # testing_y_axis_range=dict(range=[0, 100]),
+                )
 
         # graph = graph_generate.linegraph()
         # graph.add_linegraph()
 
         if delete_tempoary_files:
-            for x in range(len(video_scenes[0])):
-                try:
-                    os.remove(TEMPORARY_FILENAMES(x))
-                except FileNotFoundError:
-                    print("TEMP FILE NOT FOUND...  NOT DELETED")
+            with console.status("Deleting tempoary video files"):
+                for x in range(len(video_scenes[0])):
+                    try:
+                        os.remove(TEMPORARY_FILENAMES(x))
+                    except FileNotFoundError:
+                        print("TEMP FILE NOT FOUND...  NOT DELETED")
 
         if recombine_audio_from_input_file:
-            # Do I need this check?
-            if ffmpeg_heuristics.ffprobe_information.check_contains_any_audio(
-                input_filename_with_extension, "ffprobe"
-            ):
-                try:
-                    _ = subprocess.run(
-                        " ".join(
-                            [
-                                ffmpeg_path,
-                                f"-i {output_filename_with_extension}",
-                                f"-i {input_filename_with_extension}",
-                                "-c copy",
-                                "-map 0:v:0",  # is there a bug here........?
-                                "-map 1:a",  # copy all audio
-                                f"TEMP-{output_filename_with_extension}",
-                            ]
-                        ),
-                        shell=True,
-                        check=True,
-                    )
-                    os.remove(output_filename_with_extension)
-                    os.rename(
-                        f"TEMP-{output_filename_with_extension}",
-                        output_filename_with_extension,
-                    )
-                except FileNotFoundError:
-                    print("File not found error for audio combination")
-                except subprocess.CalledProcessError:
+            with console.status("Recombining audio from source with rendered video"):
+                # Do I need this check?
+                if ffmpeg_heuristics.ffprobe_information.check_contains_any_audio(
+                    input_filename_with_extension, "ffprobe"
+                ):
+                    try:
+                        _ = subprocess.run(
+                            " ".join(
+                                [
+                                    ffmpeg_path,
+                                    f"-i {output_filename_with_extension}",
+                                    f"-i {input_filename_with_extension}",
+                                    "-c copy",
+                                    "-map 0:v:0",  # is there a bug here........?
+                                    "-map 1:a",  # copy all audio
+                                    f"TEMP-{output_filename_with_extension}",
+                                ]
+                            ),
+                            shell=True,
+                            check=True,
+                        )
+                        os.remove(output_filename_with_extension)
+                        os.rename(
+                            f"TEMP-{output_filename_with_extension}",
+                            output_filename_with_extension,
+                        )
+                    except FileNotFoundError:
+                        print("File not found error for audio combination")
+                    except subprocess.CalledProcessError:
+                        print(
+                            "Process failed because did not return a successful return code."
+                        )
+                else:
                     print(
-                        "Process failed because did not return a successful return code."
+                        "NOTICE: INPUT FILE CONTAINED NO AUDIO!! (no audio to transfer)"
                     )
-            else:
-                print("NOTICE: INPUT FILE CONTAINED NO AUDIO!! (no audio to transfer)")
 
     @staticmethod
     def _compress_video_part(

@@ -21,9 +21,9 @@ class VMAF:
         self,
         source_video_path: str,
         encoded_video_path: str,
+        ffmpeg_path: str,
         source_start_end_time: None | tuple[str, str] = None,
         encode_start_end_time: None | tuple[str, str] = None,
-        ffmpeg_path: str = "ffmpeg",
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
     ) -> float:
@@ -80,9 +80,9 @@ class VMAF:
         self,
         source_video_path: str,
         encoded_video_path: str,
+        ffmpeg_path: str,
         source_start_end_time: None | tuple[str, str] = None,
         encode_start_end_time: None | tuple[str, str] = None,
-        ffmpeg_path: str = "ffmpeg",
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
     ) -> list[float]:
@@ -216,10 +216,10 @@ class VMAF:
 #     ) -> int: ...
 
 
-def crop_black_bars(source_video_path: str) -> str:
+def crop_black_bars(source_video_path: str, ffmpeg_path: str) -> str:
     # print("CROPPING BLACK BARS")
     ffmpeg_output = subprocess.getoutput(
-        f'ffmpeg -i "{source_video_path}" -t 10 -vf cropdetect -f null -'
+        f'{ffmpeg_path} -i "{source_video_path}" -t 10 -vf cropdetect -f null -'
     ).splitlines()
     data = [x for x in ffmpeg_output if "crop=" in x][-1]
     # _ = input(data.rsplit(maxsplit=1)[-1])

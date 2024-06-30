@@ -180,7 +180,9 @@ class FfmpegCommand:
 
 
 def concatenate_video_files(
-    list_of_video_files: list[str], output_filename_with_extension: str
+    list_of_video_files: list[str],
+    output_filename_with_extension: str,
+    ffmpeg_path: str,
 ):
     """
     NOTE THE CODEC OF THE VIDEO FILES MUST BE THE SAME!
@@ -194,7 +196,7 @@ def concatenate_video_files(
     #     f'ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"'  # -hide_banner -loglevel error
     # )
     _ = subprocess.run(
-        f'ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"',
+        f'{ffmpeg_path} -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"',
         shell=True,
         check=True,
     )
