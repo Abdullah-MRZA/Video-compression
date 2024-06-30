@@ -6,6 +6,8 @@ import subprocess
 
 type heuristic = VMAF
 
+# PROGRAM ASSUMPTION --> Bigger heuristic is better!
+
 
 @dataclass()
 class VMAF:

@@ -1,14 +1,26 @@
+from dataclasses import dataclass
 import scenedetect as sd
-from scenedetect.frame_timecode import FrameTimecode
+# from scenedetect.frame_timecode import FrameTimecode
+# from rich import print
+
+
+@dataclass()
+class scene_data:
+    start_frame: int
+    start_timecode: str
+
+    end_frame: int
+    end_timecode: str
 
 
 def find_scenes(
-    video_path: str, threshold: float = 27.0
-) -> tuple[
-    list[tuple[str, str]], list[tuple[float, float]]
-]:  # list[tuple[FrameTimecode, FrameTimecode]]:
+    video_path: str,
+    threshold: float,
+    # ) -> tuple[list[tuple[str, str]], list[tuple[float, float]]]:
+) -> list[scene_data]:  # list[tuple[FrameTimecode, FrameTimecode]]:
     """
     Function that gets the frames of the different scenes in the video
+    - for threshold, 27.0 is default value
     """
     video = sd.open_video(video_path)
     scene_manager = sd.SceneManager()
@@ -22,21 +34,32 @@ def find_scenes(
     # return scene_manager.get_scene_list()
 
     # (x[0].get_frames(), x[1].get_frames()) for x in scene_manager.get_scene_list()
-    return (
-        [
-            (x[0].get_timecode(), x[1].get_timecode())
-            for x in scene_manager.get_scene_list()
-        ],
-        [
-            (x[0].get_frames(), x[1].get_frames())
-            for x in scene_manager.get_scene_list()
-        ],
-    )
+    # return (
+    #     [
+    #         (x[0].get_timecode(), x[1].get_timecode())
+    #         for x in scene_manager.get_scene_list()
+    #     ],
+    #     [
+    #         (x[0].get_frames(), x[1].get_frames())
+    #         for x in scene_manager.get_scene_list()
+    #     ],
+    # )
+
+    return [
+        scene_data(
+            start_frame=x[0].get_frames(),
+            end_frame=x[1].get_frames(),
+            start_timecode=x[0].get_timecode(),
+            end_timecode=x[1].get_timecode(),
+        )
+        for x in scene_manager.get_scene_list()
+    ]
 
 
-# data = find_scenes("test.mp4")
-# print(f"{data=}")
-#
+# data = find_scenes("input.mov", threshold=27)
+# # print(f"{data=}")
+# print(data)
+
 # print([x[0].get_seconds() for x in data])
 
 

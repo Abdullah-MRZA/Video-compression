@@ -1,5 +1,6 @@
+from dataclasses import dataclass
 from rich import print
-from rich.console import console
+from rich.console import Console
 from rich.progress import track
 import ffmpeg
 import ffmpeg_heuristics
@@ -30,6 +31,7 @@ class Compress_video:
         scene_detection_threshold: float = 27.0,
         recombine_audio_from_input_file: bool = True,
         # extra_ffmpeg_commands: str | None = None,
+        # multithreading_threads: int = 1,
     ):
         """
         This does practically all of the calculations
@@ -38,14 +40,16 @@ class Compress_video:
         This also recombines the video at the end
         """
 
+        rich_console = Console()
+
         if output_filename_with_extension is None:
             output_filename_with_extension = (
                 f"RENDERED - {input_filename_with_extension.rsplit('.', 1)[0]}.mkv"
             )
 
         if crop_black_bars:  # Assumption is that the black bars don't change in size
-            crop_black_bars_size = ffmpeg_heuristics.crop_black_bars(
-                input_filename_with_extension
+            crop_black_bars_size: str | None = ffmpeg_heuristics.crop_black_bars(
+                input_filename_with_extension, ffmpeg_path
             )
         else:
             crop_black_bars_size = None
@@ -54,19 +58,27 @@ class Compress_video:
             """Returns the name of an intermediate file, in a centralised place"""
             return f"{x}-part.mkv"
 
-        with console.status("Calculating scenes"):
-            video_scenes = scene_detection.find_scenes(
-                video_path=input_filename_with_extension,
-                threshold=scene_detection_threshold,
+        with rich_console.status("Calculating scenes"):
+            video_scenes: list[scene_detection.scene_data] = (
+                scene_detection.find_scenes(
+                    video_path=input_filename_with_extension,
+                    threshold=scene_detection_threshold,
+                )
             )
 
         print(f"{video_scenes=}")
-        print(f"Total Scenes in input file: {len(video_scenes[0])}\n")
+        print(f"Total Scenes in input file: {len(video_scenes)}\n")
 
-        video_data_crf_heuristic: list[tuple[int, float]] = []
+        @dataclass()
+        class video_data:
+            optimal_crf: int
+            heuristic_value: float
+
+        # video_data_crf_heuristic: list[tuple[int, float]] = []
+        video_data_crf_heuristic: list[video_data] = []
 
         for i, scenes in track(
-            list(enumerate(video_scenes[0])),  # doesn't work with just enumerate
+            list(enumerate(video_scenes)),  # doesn't work with just enumerate
             description="[yellow]Processing scenes[/yellow]",
         ):
             print(f"RUNNING SECTION {i} OF SCENE")
@@ -74,8 +86,8 @@ class Compress_video:
                 Compress_video._compress_video_part(
                     input_filename=input_filename_with_extension,
                     output_filename=TEMPORARY_FILENAMES(i),  # changed to always use mkv
-                    part_beginning=scenes[0],
-                    part_end=scenes[1],
+                    part_beginning=scenes.start_timecode,
+                    part_end=scenes.end_timecode,
                     heuristic_type=heuristic_type,
                     crop_black_bars_size=crop_black_bars_size,
                     bit_depth=bit_depth,
@@ -86,37 +98,46 @@ class Compress_video:
                 )
             )
             video_data_crf_heuristic.append(
-                (optimal_crf_value, heuristic_value_of_encode)
+                video_data(
+                    optimal_crf=optimal_crf_value,
+                    heuristic_value=heuristic_value_of_encode,
+                )
             )
 
-        with console.status("Concatenating temporary video files to final file"):
+        with rich_console.status("Concatenating temporary video files to final file"):
             ffmpeg.concatenate_video_files(
-                [TEMPORARY_FILENAMES(x) for x in range(len(video_scenes[0]))],
+                [TEMPORARY_FILENAMES(x) for x in range(len(video_scenes))],
                 output_filename_with_extension,
+                ffmpeg_path,
             )
 
-        with console.status("Generating graph of data"):
+        with rich_console.status("Generating graph of data"):
             with graph_generate.linegraph_image(
                 filename_without_extension="Video_information_per_scene",
                 title_of_graph=f"CRF and {heuristic_type.NAME} throughout video",
                 x_axis_name="Frames",
             ) as graph:
                 graph.add_linegraph(
-                    x_data=[x[0] for x in video_scenes[1]],
-                    y_data=[x[0] for x in video_data_crf_heuristic],
+                    x_data=[x.start_frame for x in video_scenes],
+                    y_data=[x.optimal_crf for x in video_data_crf_heuristic],
                     name="CRF",
                     mode="lines+markers",
                     on_left_right_side="right",
                     y_axis_range=ffmpeg_codec_information.ACCEPTED_CRF_RANGE,
                 )
-                graph.add_linegraph(
-                    x_data=[x[0] for x in video_scenes[1]],
-                    # y_data=[x[1] for x in video_data_crf_heuristic], # This is overall from the function of each splitvideo
-                    y_data=heuristic_type.throughout_video(
+
+                heuristic_data_throughout_video: list[float] = (
+                    heuristic_type.throughout_video(
                         source_video_path=input_filename_with_extension,
                         encoded_video_path=output_filename_with_extension,
                         ffmpeg_path=ffmpeg_path,
-                    ),
+                    )
+                )
+
+                graph.add_linegraph(
+                    x_data=list(range(len(heuristic_data_throughout_video))),
+                    # y_data=[x[1] for x in video_data_crf_heuristic], # This is overall from the function of each splitvideo
+                    y_data=heuristic_data_throughout_video,
                     name=heuristic_type.NAME,
                     mode="lines+markers",
                     on_left_right_side="left",
@@ -128,15 +149,17 @@ class Compress_video:
         # graph.add_linegraph()
 
         if delete_tempoary_files:
-            with console.status("Deleting tempoary video files"):
-                for x in range(len(video_scenes[0])):
+            with rich_console.status("Deleting tempoary video files"):
+                for x in range(len(video_scenes)):
                     try:
                         os.remove(TEMPORARY_FILENAMES(x))
                     except FileNotFoundError:
                         print("TEMP FILE NOT FOUND...  NOT DELETED")
 
         if recombine_audio_from_input_file:
-            with console.status("Recombining audio from source with rendered video"):
+            with rich_console.status(
+                "Recombining audio from source with rendered video"
+            ):
                 # Do I need this check?
                 if ffmpeg_heuristics.ffprobe_information.check_contains_any_audio(
                     input_filename_with_extension, "ffprobe"
@@ -224,11 +247,12 @@ class Compress_video:
 
                 command.run_ffmpeg_command(current_crf)
 
-                current_crf_heuristic = heuristic_type.overall(
+                current_crf_heuristic: float = heuristic_type.overall(
                     source_video_path=input_filename,
                     encoded_video_path=tempoary_video_file_name,
                     source_start_end_time=(part_beginning, part_end),
                     encode_start_end_time=None,
+                    ffmpeg_path=ffmpeg_path,
                 )
 
                 all_heuristic_crf_data.update({current_crf_heuristic: current_crf})

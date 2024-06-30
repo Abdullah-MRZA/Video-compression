@@ -1,5 +1,4 @@
 import subprocess
-import ffmpeg_heuristics
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Literal
@@ -23,10 +22,15 @@ type bitdepth = Literal["yuv420p10le", "yuv420p"]
 class SVTAV1:
     # crf_value: int
     preset: int = 8
+    tune: Literal["subjective", "PSNR"] = "subjective"
+
+    @dataclass()
+    class filmgrain:
+        film_grain: int
+        film_grain_denoise: bool
 
     # -svtav1-params film-grain=X, film-grain-denoise=0
-    film_grain: None | tuple[int, bool] = None
-    tune: Literal["subjective", "PSNR"] = "subjective"
+    film_grain: None | filmgrain = None
 
     # const data
     ACCEPTED_CRF_RANGE: range = range(0, 63 + 1, 1)
@@ -39,8 +43,8 @@ class SVTAV1:
         ]  # , f"-crf {self.crf_value}"]
 
         if self.film_grain is not None:
-            command.append(f"-svtav1-params film-grain={self.film_grain[0]}")
-            command.append(f"film-grain-denoise={self.film_grain[1]}")
+            command.append(f"-svtav1-params film-grain={self.film_grain.film_grain}")
+            command.append(f"film-grain-denoise={self.film_grain.film_grain_denoise}")
 
         command.append(f"-svtav1-params tune={["subjective", "PSNR"].index(self.tune)}")
 
@@ -49,7 +53,7 @@ class SVTAV1:
 
 @dataclass()
 class H264:
-    ACCEPTED_CRF_RANGE: range = range(0, 40, 1)
+    ACCEPTED_CRF_RANGE: range = range(0, 51 + 1, 1)
 
     preset: Literal[
         "ultrafast",
@@ -73,7 +77,7 @@ class H264:
         "psnr",
         "ssim",
     ] = None
-    faststart: bool = True
+    faststart: bool = False  # does this get translated to final file?
 
     def to_subprocess_command(self) -> list[str]:
         command = [
@@ -92,7 +96,7 @@ class H264:
 
 @dataclass()
 class H265:
-    ACCEPTED_CRF_RANGE: range = range(0, 40, 1)
+    ACCEPTED_CRF_RANGE: range = range(0, 51 + 1, 1)
     preset: Literal[
         "ultrafast",
         "superfast",

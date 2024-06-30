@@ -15,8 +15,8 @@ def main() -> None:
 
     # video_path: str = "input_small.mkv"
     # video_path: str = "input_test.mkv"
-    video_path: str = "input.mov"
-    # video_path: str = "input_long.mp4"
+    # video_path: str = "input.mov"
+    video_path: str = "input_long_5mins.mp4"
 
     target_video_quality.Compress_video.compress_video(
         input_filename_with_extension=video_path,
@@ -24,7 +24,8 @@ def main() -> None:
         # ffmpeg_codec_information=ffmpeg.H264(
         #     preset="ultrafast", faststart=False
         # ),  # 'fast' prototyping
-        ffmpeg_codec_information=ffmpeg.SVTAV1(preset=6),
+        # ffmpeg_codec_information=ffmpeg.SVTAV1(preset=6),
+        ffmpeg_codec_information=ffmpeg.H264(preset="slow"),
         heuristic_type=ffmpeg_heuristics.VMAF(target_score=90),
         # other parameters
         crop_black_bars=False,
