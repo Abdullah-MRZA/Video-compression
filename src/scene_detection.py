@@ -52,9 +52,12 @@ def find_scenes(
             start_timecode=x[0].get_timecode(),
             end_timecode=x[1].get_timecode(),
         )
-        for x in scene_manager.get_scene_list()
+        for x in scene_manager.get_scene_list()  # BUG: if len=0 then program will crash!!
     ]
 
+
+# def scene_data_minimum_size(data: list[scene_data]) -> list[scene_data]:
+#     ...
 
 # data = find_scenes("input.mov", threshold=27)
 # # print(f"{data=}")
