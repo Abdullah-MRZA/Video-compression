@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from rich.console import Console
-from rich.progress import track
+from rich.progress import track, Progress, TimeElapsedColumn
 import ffmpeg
 import ffmpeg_heuristics
 import graph_generate
@@ -11,10 +11,13 @@ import logging
 from rich.logging import RichHandler
 import time
 
+from rich.traceback import install
+
+_ = install(show_locals=True)
+
 # from rich import print
 
 rich_console = Console()
-
 
 logging.basicConfig(
     level="NOTSET", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
@@ -22,9 +25,22 @@ logging.basicConfig(
 log: logging.Logger = logging.getLogger("rich")
 
 
+progress = Progress(
+    # progress.SpinnerColumn(),
+    *Progress.get_default_columns(),
+    TimeElapsedColumn(),
+)
+
+
 def TEMPORARY_FILENAMES(x: int) -> str:
     """Returns the name of an intermediate file, in a centralised place"""
     return f"{x}-part.mkv"
+
+
+@dataclass()
+class compress_video_time_data:
+    total_time_rendering: float = 0
+    total_time_in_heuristic_calculation: float = 0
 
 
 def compress_video(
@@ -49,7 +65,7 @@ def compress_video(
     # multithreading_threads: int = 1,
     # minimum_scene_length_seconds: int | None = 10,
     compare_final_video_using_difference: str | None = "Comparison_difference.mp4",
-):
+) -> compress_video_time_data:
     """
     This does practically all of the calculations
     This splits the video files into scenes, and then compresses them,
@@ -57,17 +73,16 @@ def compress_video(
     This also recombines the video at the end
     """
 
-    total_time_rendering: float = 0
-    total_time_in_heuristic_calculation: float = 0
+    time_data = compress_video_time_data()
 
     if output_filename_with_extension is None:
         output_filename_with_extension = (
             f"RENDERED - {input_filename_with_extension.rsplit('.', 1)[0]}.mkv"
         )
 
-    crop_black_bars_size = None  # default value
+    crop_black_bars_size: str | None = None  # default value
     if crop_black_bars:  # Assumption is that the black bars don't change in size
-        crop_black_bars_size: str | None = ffmpeg_heuristics.crop_black_bars(
+        crop_black_bars_size = ffmpeg_heuristics.crop_black_bars(
             input_filename_with_extension, ffmpeg_path
         )
 
@@ -83,6 +98,8 @@ def compress_video(
         f"scene lengths (in frames): [{', '.join(str(x.end_frame - x.start_frame) for x in video_scenes)}]"
     )
 
+    # FRAMES_PER_SECOND = video_scenes[0]. / video_scenes[0].end_frame
+
     @dataclass()
     class video_data:
         optimal_crf: int
@@ -93,33 +110,37 @@ def compress_video(
 
     def compress_video_part(part: int) -> video_data:
         # print(f"RUNNING SECTION {part} OF SCENE")
-        optimal_crf_value, heuristic_value_of_encode = _compress_video_part(
-            input_filename=input_filename_with_extension,
-            output_filename=TEMPORARY_FILENAMES(part),  # changed to always use mkv
-            part_beginning=scenes.start_timecode,
-            part_end=scenes.end_timecode,
-            heuristic_type=heuristic_type,
-            unique_identifier=str(part),
-            crop_black_bars_size=crop_black_bars_size,
-            bit_depth=bit_depth,
-            keyframe_placement=keyframe_placement,
-            ffmpeg_codec_information=ffmpeg_codec_information,
-            ffmpeg_path=ffmpeg_path,
-            extra_current_crf_itterate_amount=extra_current_crf_itterate_amount,
+        optimal_crf_value, heuristic_value_of_encode, time_in_heuristic = (
+            _compress_video_part(
+                input_filename=input_filename_with_extension,
+                output_filename=TEMPORARY_FILENAMES(part),  # changed to always use mkv
+                part_beginning=scenes.start_timecode,
+                part_end=scenes.end_timecode,
+                heuristic_type=heuristic_type,
+                unique_identifier=str(part),
+                crop_black_bars_size=crop_black_bars_size,
+                bit_depth=bit_depth,
+                keyframe_placement=keyframe_placement,
+                ffmpeg_codec_information=ffmpeg_codec_information,
+                ffmpeg_path=ffmpeg_path,
+                extra_current_crf_itterate_amount=extra_current_crf_itterate_amount,
+            )
         )
+        time_data.total_time_in_heuristic_calculation += time_in_heuristic
 
         return video_data(
             optimal_crf=optimal_crf_value,
             heuristic_value=heuristic_value_of_encode,
         )
 
-    for i, scenes in track(  # progressive, single-threaded approach
-        list(enumerate(video_scenes)),  # doesn't work with just enumerate
-        description="[yellow]Processing scenes[/yellow]",
-    ):
-        start_time = time.perf_counter()
-        video_data_crf_heuristic.append(compress_video_part(i))
-        total_time_rendering += time.perf_counter() - start_time
+    with progress:
+        for i, scenes in progress.track(  # progressive, single-threaded approach
+            list(enumerate(video_scenes)),  # doesn't work with just enumerate
+            description="[yellow]Processing scenes[/yellow]",
+        ):
+            start_time = time.perf_counter()
+            video_data_crf_heuristic.append(compress_video_part(i))
+            time_data.total_time_rendering += time.perf_counter() - start_time
 
     with rich_console.status("Concatenating temporary video files to final file"):
         ffmpeg.concatenate_video_files(
@@ -143,20 +164,26 @@ def compress_video(
                 y_axis_range=ffmpeg_codec_information.ACCEPTED_CRF_RANGE,
             )
 
+            subsample_amount = 2
+
             heuristic_data_throughout_video: list[float] = (
                 heuristic_type.throughout_video(
                     source_video_path=input_filename_with_extension,
                     encoded_video_path=output_filename_with_extension,
                     ffmpeg_path=ffmpeg_path,
+                    subsample=subsample_amount,
                 )
             )
 
             graph.add_linegraph(
-                x_data=list(range(len(heuristic_data_throughout_video))),
+                x_data=list(
+                    x * subsample_amount
+                    for x in range(len(heuristic_data_throughout_video))
+                ),
                 # y_data=[x[1] for x in video_data_crf_heuristic], # This is overall from the function of each splitvideo
                 y_data=heuristic_data_throughout_video,
                 name=heuristic_type.NAME,
-                mode="lines+markers",
+                mode="lines",
                 on_left_right_side="left",
                 y_axis_range=heuristic_type.RANGE,
                 # testing_y_axis_range=dict(range=[0, 100]),
@@ -217,6 +244,8 @@ def compress_video(
             output_filename_with_extension=compare_final_video_using_difference,
         )
 
+    return time_data
+
 
 def _compress_video_part(
     input_filename: str,
@@ -231,7 +260,7 @@ def _compress_video_part(
     ffmpeg_codec_information: ffmpeg.video,
     ffmpeg_path: str,
     extra_current_crf_itterate_amount: int = 1,
-) -> tuple[int, float]:
+) -> tuple[int, float, float]:
     """
     Using a binary search approach on the whole range of CRF
     Would identify the ideal CRF for the closest heuristic value??
@@ -239,6 +268,7 @@ def _compress_video_part(
     """
     # use a 'binary search' approach? Is this optimal? (doubt it, but definitely functional)
 
+    total_time_in_heuristic_calculation_local: float = 0
     tempoary_video_file_name: str = f"TEMPORARY-ENCODE-{unique_identifier}.mkv"
 
     with ffmpeg.FfmpegCommand(
@@ -251,7 +281,7 @@ def _compress_video_part(
         bit_depth=bit_depth,
         keyframe_placement=keyframe_placement,
         ffmpeg_path=ffmpeg_path,
-    ) as command:
+    ) as video_command:
         bottom_crf_value = min(ffmpeg_codec_information.ACCEPTED_CRF_RANGE)
         top_crf_value = max(ffmpeg_codec_information.ACCEPTED_CRF_RANGE)
 
@@ -267,14 +297,18 @@ def _compress_video_part(
         ) not in all_heuristic_crf_data.values():
             log.debug(f"RUNNING CRF VALUE {current_crf}")
 
-            command.run_ffmpeg_command(current_crf)
+            video_command.run_ffmpeg_command(current_crf)
 
+            start_time = time.perf_counter()
             current_crf_heuristic: float = heuristic_type.overall_summary(
                 source_video_path=input_filename,
                 encoded_video_path=tempoary_video_file_name,
                 source_start_end_time=(part_beginning, part_end),
                 encode_start_end_time=None,
                 ffmpeg_path=ffmpeg_path,
+            )
+            total_time_in_heuristic_calculation_local += (
+                time.perf_counter() - start_time
             )
 
             all_heuristic_crf_data.update({current_crf_heuristic: current_crf})
@@ -311,13 +345,15 @@ def _compress_video_part(
 
         log.info(f"OPTIMAL CRF VALUE IS {closest_crf_value_to_target_heuristic}")
 
-        command.run_ffmpeg_command(
+        video_command.run_ffmpeg_command(
             closest_crf_value_to_target_heuristic,
             override_output_file_name=output_filename,
         )
 
         all_crf_heuristic_data = {v: k for k, v in all_heuristic_crf_data.items()}
-        return closest_crf_value_to_target_heuristic, all_crf_heuristic_data[
-            closest_crf_value_to_target_heuristic
-        ]
+        return (
+            closest_crf_value_to_target_heuristic,
+            all_crf_heuristic_data[closest_crf_value_to_target_heuristic],
+            total_time_in_heuristic_calculation_local,
+        )
         # return closest_crf_value_to_target_heuristic

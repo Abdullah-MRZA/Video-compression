@@ -4,6 +4,12 @@ import json
 import subprocess
 # from rich import print
 
+
+from rich.traceback import install
+
+_ = install(show_locals=True)
+
+
 type heuristic = VMAF
 
 # PROGRAM ASSUMPTION --> Bigger heuristic is better!
@@ -13,6 +19,13 @@ type heuristic = VMAF
 class VMAF:
     """
     the VMAF heuristic. A score of like 90 is usually good
+
+    ffmpeg -ss 10 -t 10 -i short.mp4 \
+    -ss 10 -t 10 -i short.mp4 \
+    -lavfi "[0:v]setpts=PTS-STARTPTS[reference]; \
+            [1:v]setpts=PTS-STARTPTS[distorted]; \
+            [distorted][reference]libvmaf=n_threads=8" \
+    -f null -
     """
 
     target_score: int
@@ -32,32 +45,25 @@ class VMAF:
         print("Running FFMPEG COMMAND for vmaf")
         ffmpeg_command: list[str] = [ffmpeg_path, "-hide_banner"]
 
-        if source_start_end_time is not None:
-            ffmpeg_command.extend(["-ss", source_start_end_time[0]])
-            ffmpeg_command.extend(["-to", source_start_end_time[1]])
-        ffmpeg_command.extend(["-i", source_video_path])
-
         if encode_start_end_time is not None:
             ffmpeg_command.extend(["-ss", encode_start_end_time[0]])
             ffmpeg_command.extend(["-to", encode_start_end_time[1]])
         ffmpeg_command.extend(["-i", encoded_video_path])
 
+        if source_start_end_time is not None:
+            ffmpeg_command.extend(["-ss", source_start_end_time[0]])
+            ffmpeg_command.extend(["-to", source_start_end_time[1]])
+        ffmpeg_command.extend(["-i", source_video_path])
+
         # https://www.bannerbear.com/blog/how-to-trim-a-video-using-ffmpeg/#:~:text=You%20can%20trim%20the%20input%20video%20to%20a%20specific%20duration,the%20beginning%20of%20the%20video.&text=In%20the%20command%20above%2C%20%2Dvf,the%20duration%20to%203%20seconds.
         # https://stackoverflow.com/questions/67598772/right-way-to-use-vmaf-with-ffmpeg
-        """
-        ffmpeg -ss 10 -t 10 -i short.mp4 \
-        -ss 10 -t 10 -i short.mp4 \
-        -lavfi "[0:v]setpts=PTS-STARTPTS[reference]; \
-                [1:v]setpts=PTS-STARTPTS[distorted]; \
-                [distorted][reference]libvmaf=n_threads=8" \
-        -f null -
-        """
 
         ffmpeg_command.extend(
             [
                 "-an",  # Remove audio
                 "-lavfi",
-                f'"[0:v]setpts=PTS-STARTPTS[reference];[1:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}"',
+                # f'"[0:v]setpts=PTS-STARTPTS[reference];[1:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}"',
+                f'"libvmaf=n_threads={threads_to_use}:n_subsample={subsample}"',
                 "-f",
                 "null",
                 "-",
@@ -101,21 +107,22 @@ class VMAF:
         print("Running FFMPEG-throughout COMMAND for vmaf")
         ffmpeg_command: list[str] = [ffmpeg_path, "-hide_banner"]
 
-        if source_start_end_time is not None:
-            ffmpeg_command.extend(["-ss", source_start_end_time[0]])
-            ffmpeg_command.extend(["-to", source_start_end_time[1]])
-        ffmpeg_command.extend(["-i", source_video_path])
-
         if encode_start_end_time is not None:
             ffmpeg_command.extend(["-ss", encode_start_end_time[0]])
             ffmpeg_command.extend(["-to", encode_start_end_time[1]])
         ffmpeg_command.extend(["-i", encoded_video_path])
 
+        if source_start_end_time is not None:
+            ffmpeg_command.extend(["-ss", source_start_end_time[0]])
+            ffmpeg_command.extend(["-to", source_start_end_time[1]])
+        ffmpeg_command.extend(["-i", source_video_path])
+
         ffmpeg_command.extend(
             [
                 "-an",  # Remove audio
                 "-lavfi",
-                f'"[0:v]setpts=PTS-STARTPTS[reference];[1:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path=log.json"',
+                # f'"[0:v]setpts=PTS-STARTPTS[reference];[1:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path=log.json"',
+                f'"libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path=log.json"',
                 "-f",
                 "null",
                 "-",
@@ -149,38 +156,6 @@ class VMAF:
             print("FileNotFoundError for removing log.json")
 
         return vmaf_data
-
-
-# class SSIM:
-#     def overall(
-#         self,
-#         source_video_path: str,
-#         encoded_video_path: str,
-#         ffmpeg_path: str = "ffmpeg",
-#     ) -> int: ...
-#
-#     def throughout_video(
-#         self,
-#         source_video_path: str,
-#         encoded_video_path: str,
-#         ffmpeg_path: str = "ffmpeg",
-#     ) -> int: ...
-
-
-# class PSNR:
-#     def overall(
-#         self,
-#         source_video_path: str,
-#         encoded_video_path: str,
-#         ffmpeg_path: str = "ffmpeg",
-#     ) -> int: ...
-#
-#     def throughout_video(
-#         self,
-#         source_video_path: str,
-#         encoded_video_path: str,
-#         ffmpeg_path: str = "ffmpeg",
-#     ) -> int: ...
 
 
 # @dataclass()
@@ -229,12 +204,10 @@ class VMAF:
 
 
 def crop_black_bars(source_video_path: str, ffmpeg_path: str) -> str:
-    # print("CROPPING BLACK BARS")
     ffmpeg_output = subprocess.getoutput(
         f'{ffmpeg_path} -i "{source_video_path}" -t 10 -vf cropdetect -f null -'
     )
     data = [x for x in ffmpeg_output.splitlines() if "crop=" in x][-1]
-    # _ = input(data.rsplit(maxsplit=1)[-1])
 
     # get the last data point? (does the crop size ever change?) --> Need to test
     return data.rsplit(maxsplit=1)[-1]

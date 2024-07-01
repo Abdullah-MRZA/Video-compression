@@ -2,6 +2,7 @@ import time
 import ffmpeg_heuristics
 import ffmpeg
 import target_video_quality
+from rich import print
 
 
 # TODO: Add these features
@@ -17,27 +18,34 @@ def main() -> None:
 
     # video_path: str = "input_small.mkv"
     # video_path: str = "input_test.mkv"
-    video_path: str = "input.mov"
+    # video_path: str = "input.mov"
+    # video_path: str = "input-copy.mov"
     # video_path: str = "input_long_5mins.mp4"
-    # video_path: str = "short.mp4"
+    video_path: str = "short.mp4"
+    # video_path: str = "short-smallest.mp4"
     # video_path: str = "test.mkv"
 
-    target_video_quality.compress_video(
+    time_data = target_video_quality.compress_video(
         input_filename_with_extension=video_path,
         output_filename_with_extension="OUTPUT_FILE.mkv",  # reccomended MKV
         # ffmpeg_codec_information=ffmpeg.H264(
         #     preset="ultrafast", faststart=False
         # ),  # 'fast' prototyping
         # ffmpeg_codec_information=ffmpeg.SVTAV1(preset=6),
-        ffmpeg_codec_information=ffmpeg.H264(preset="slower"),
-        heuristic_type=ffmpeg_heuristics.VMAF(target_score=90),
+        ffmpeg_codec_information=ffmpeg.H265(preset="faster"),
+        heuristic_type=ffmpeg_heuristics.VMAF(target_score=85),
         # other parameters
         crop_black_bars=False,
         extra_current_crf_itterate_amount=2,  # probably speeds up by a **very small** amount
-        scene_detection_threshold=50,  # 27 or 40
+        scene_detection_threshold=27,  # 27 or 40
         recombine_audio_from_input_file=True,  # need to detect if source has audio
         keyframe_placement=300,
+        # for testing
+        # delete_tempoary_files=False,
     )
+
+    print()
+    print(time_data)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,10 @@ from types import TracebackType
 from typing import Literal
 import os
 
+from rich.traceback import install
+
+_ = install(show_locals=True)
+
 
 type video = SVTAV1 | H265 | H264
 # TODO add VP9 support when I feel like it
@@ -149,10 +153,12 @@ class FfmpegCommand:
     ) -> None:
         command: list[str] = [
             self.ffmpeg_path,
-            "-hide_banner -loglevel error",
+            # "-hide_banner -loglevel error",
+            "-accurate_seek",
             f'-i "{self.input_filename}"',
             f"-ss {self.start_time_seconds}",  # -ss After is **very important** for accuracy!!
             f"-to {self.end_time_seconds}",
+            # f"-vf trim={self.start_time_seconds}:{self.end_time_seconds},setpts=PTS-STARTPTS",  # is this faster + as accurate?
             *self.codec_information.to_subprocess_command(),
             "-an",
             f"-pix_fmt {self.bit_depth}",
@@ -209,6 +215,13 @@ def concatenate_video_files(
         os.remove("video_list.txt")
     except FileNotFoundError:
         print("File Not found error: video_list.txt can't be deleted")
+
+
+# concatenate_video_files([f"out{x}.mp4" for x in range(3)], "TEST.mkv", "ffmpeg")
+
+# concatenate_video_files(
+#     [f"{x}-part.mkv" for x in range(0, 6)], "utasjldfkajs.mkv", "ffmpeg"
+# )
 
 
 # def get_video_metadata(...) -> ...:
@@ -366,17 +379,38 @@ def visual_comparison_of_video_with_blend_filter(
     -filter_complex "blend=all_mode=difference" \
     -c:v libx264 -crf 18 -c:a copy output.mkv
     """
+    print("RUNNING visual_comparison_of_video_with_blend_filter")
     try:
         _ = subprocess.run(
-            f"{ffmpeg_path} -i {source_video_path} -i {encoded_video_path} -hide_banner -loglevel error "
-            + f'-filter_complex "blend=all_mode=difference" -c:v libx264 -crf 18 -an {output_filename_with_extension}',
+            f"{ffmpeg_path} -i {encoded_video_path} -i {source_video_path} -hide_banner -loglevel error "
+            # + '-filter_complex "[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]blend=all_mode=difference" -c:v libx264 -y -crf 18 ' # this is actually harmful?? because the "start_time" in ffprobe don't line up, and this also causes them to not line up
+            + '-filter_complex "blend=all_mode=difference" -c:v libx264 -y -crf 18 '
+            + f'-an "{output_filename_with_extension}"',
             shell=True,
             check=True,
         )
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         print("ERROR FAILED TO OUTPUT VISUAL COMPARISON (with blend filter)")
 
 
-visual_comparison_of_video_with_blend_filter(
-    "input.mov", "input.mov", "ffmpeg", "TESTTEST.mkv"
-)
+# ffmpeg -i video1.mkv -i video2.mkv -filter_complex "[0:V:0]crop=960:1080:0:0[v1];[1:V:0]crop=960:1080:960:0[v2];[v1][v2]hstack=2[out]" -map "[out]" output.mkv
+# https://old.reddit.com/r/ffmpeg/comments/15jlm93/how_to_achieve_side_by_screen_split_screen_from/
+
+# visual_comparison_of_video_with_blend_filter(
+#     "input.mov", "input-copy.mov", "ffmpeg", "TESTTEST.mkv"
+# )
+
+# visual_comparison_of_video_with_blend_filter(
+#     "short-smallest.mp4", "TEST.mkv", "ffmpeg", "TESTTEST.mkv"
+# )
+#
+# print(
+#     os.system(
+#         "ffprobe -i short-smallest.mp4 -print_format json -loglevel fatal -show_streams -count_frames -select_streams v | grep start_tim"
+#     )
+# )
+# print(
+#     os.system(
+#         "ffprobe -i TEST.mkv -print_format json -loglevel fatal -show_streams -count_frames -select_streams v | grep start_tim"
+#     )
+# )
