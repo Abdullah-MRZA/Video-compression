@@ -9,6 +9,7 @@ import subprocess
 import scene_detection
 import logging
 from rich.logging import RichHandler
+import time
 
 # from rich import print
 
@@ -47,6 +48,7 @@ def compress_video(
     # extra_ffmpeg_commands: str | None = None,
     # multithreading_threads: int = 1,
     # minimum_scene_length_seconds: int | None = 10,
+    compare_final_video_using_difference: str | None = "Comparison_difference.mp4",
 ):
     """
     This does practically all of the calculations
@@ -54,6 +56,9 @@ def compress_video(
     targeting a specific video heuristic
     This also recombines the video at the end
     """
+
+    total_time_rendering: float = 0
+    total_time_in_heuristic_calculation: float = 0
 
     if output_filename_with_extension is None:
         output_filename_with_extension = (
@@ -112,7 +117,9 @@ def compress_video(
         list(enumerate(video_scenes)),  # doesn't work with just enumerate
         description="[yellow]Processing scenes[/yellow]",
     ):
+        start_time = time.perf_counter()
         video_data_crf_heuristic.append(compress_video_part(i))
+        total_time_rendering += time.perf_counter() - start_time
 
     with rich_console.status("Concatenating temporary video files to final file"):
         ffmpeg.concatenate_video_files(
@@ -202,6 +209,14 @@ def compress_video(
             else:
                 print("NOTICE: INPUT FILE CONTAINED NO AUDIO!! (no audio to transfer)")
 
+    if compare_final_video_using_difference is not None:
+        ffmpeg.visual_comparison_of_video_with_blend_filter(
+            source_video_path=input_filename_with_extension,
+            encoded_video_path=output_filename_with_extension,
+            ffmpeg_path=ffmpeg_path,
+            output_filename_with_extension=compare_final_video_using_difference,
+        )
+
 
 def _compress_video_part(
     input_filename: str,
@@ -275,7 +290,7 @@ def _compress_video_part(
 
             log.debug(
                 f"    FINISHED RUNNING {current_crf} -> {current_crf_heuristic} compared "
-                + "to {heuristic_type.target_score} | {all_heuristic_crf_data}"
+                + f"to {heuristic_type.target_score} | {all_heuristic_crf_data}"
             )
             # _ = input("continue?")
 

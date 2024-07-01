@@ -32,15 +32,15 @@ class VMAF:
         print("Running FFMPEG COMMAND for vmaf")
         ffmpeg_command: list[str] = [ffmpeg_path, "-hide_banner"]
 
-        if encode_start_end_time is not None:
-            ffmpeg_command.extend(["-ss", encode_start_end_time[0]])
-            ffmpeg_command.extend(["-to", encode_start_end_time[1]])
-        ffmpeg_command.extend(["-i", encoded_video_path])
-
         if source_start_end_time is not None:
             ffmpeg_command.extend(["-ss", source_start_end_time[0]])
             ffmpeg_command.extend(["-to", source_start_end_time[1]])
         ffmpeg_command.extend(["-i", source_video_path])
+
+        if encode_start_end_time is not None:
+            ffmpeg_command.extend(["-ss", encode_start_end_time[0]])
+            ffmpeg_command.extend(["-to", encode_start_end_time[1]])
+        ffmpeg_command.extend(["-i", encoded_video_path])
 
         # https://www.bannerbear.com/blog/how-to-trim-a-video-using-ffmpeg/#:~:text=You%20can%20trim%20the%20input%20video%20to%20a%20specific%20duration,the%20beginning%20of%20the%20video.&text=In%20the%20command%20above%2C%20%2Dvf,the%20duration%20to%203%20seconds.
         # https://stackoverflow.com/questions/67598772/right-way-to-use-vmaf-with-ffmpeg
@@ -52,21 +52,6 @@ class VMAF:
                 [distorted][reference]libvmaf=n_threads=8" \
         -f null -
         """
-
-        # if encode_start_end_time is not None:
-        #     ffmpeg_command.extend(
-        #         [
-        #             "-vf",
-        #             f'"[0:v]trim=start={encode_start_end_time[0]}:end={encode_start_end_time[1]},setpts=PTS-STARTPTS"',
-        #         ]
-        #     )
-        # if source_start_end_time is not None:
-        #     ffmpeg_command.extend(
-        #         [
-        #             "-vf",
-        #             f'"[1:v]trim=start={source_start_end_time[0]}:end={source_start_end_time[1]},setpts=PTS-STARTPTS"',
-        #         ]
-        #     )
 
         ffmpeg_command.extend(
             [
@@ -95,16 +80,14 @@ class VMAF:
             raise e
 
         # This approach *could* be error prone to changes in FFMPEG?
-        print(
-            # f"{[x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]=}"
-            f"FFMPEG OUTPUT: {ffmpeg_output}"
-        )
+        # print(
+        #     # f"{[x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]=}"
+        #     f"FFMPEG OUTPUT: {ffmpeg_output}"
+        # )
         return float(
             [x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]
         )
 
-    # ffmpeg -i input_small.mkv -i input_small.mkv -lavfi libvmaf="n_threads=4:n_subsample=1:log_fmt=json:log_path=log.json" -f null -
-    # ^^^
     def throughout_video(
         self,
         source_video_path: str,
@@ -118,15 +101,15 @@ class VMAF:
         print("Running FFMPEG-throughout COMMAND for vmaf")
         ffmpeg_command: list[str] = [ffmpeg_path, "-hide_banner"]
 
-        if encode_start_end_time is not None:
-            ffmpeg_command.extend(["-ss", encode_start_end_time[0]])
-            ffmpeg_command.extend(["-to", encode_start_end_time[1]])
-        ffmpeg_command.extend(["-i", encoded_video_path])
-
         if source_start_end_time is not None:
             ffmpeg_command.extend(["-ss", source_start_end_time[0]])
             ffmpeg_command.extend(["-to", source_start_end_time[1]])
         ffmpeg_command.extend(["-i", source_video_path])
+
+        if encode_start_end_time is not None:
+            ffmpeg_command.extend(["-ss", encode_start_end_time[0]])
+            ffmpeg_command.extend(["-to", encode_start_end_time[1]])
+        ffmpeg_command.extend(["-i", encoded_video_path])
 
         ffmpeg_command.extend(
             [
