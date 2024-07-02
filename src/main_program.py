@@ -21,7 +21,7 @@ def main() -> None:
     # video_path: str = "input.mov"
     # video_path: str = "input-copy.mov"
     # video_path: str = "input_long_5mins.mp4"
-    video_path: str = "short.mp4"
+    video_path: str = "short-fix.mp4"
     # video_path: str = "short-smallest.mp4"
     # video_path: str = "test.mkv"
 
@@ -31,9 +31,9 @@ def main() -> None:
         # ffmpeg_codec_information=ffmpeg.H264(
         #     preset="ultrafast", faststart=False
         # ),  # 'fast' prototyping
-        # ffmpeg_codec_information=ffmpeg.SVTAV1(preset=6),
-        ffmpeg_codec_information=ffmpeg.H265(preset="faster"),
-        heuristic_type=ffmpeg_heuristics.VMAF(target_score=85),
+        ffmpeg_codec_information=ffmpeg.SVTAV1(preset=6),
+        # ffmpeg_codec_information=ffmpeg.H264(preset="faster"),
+        heuristic_type=ffmpeg_heuristics.VMAF(target_score=89),
         # other parameters
         crop_black_bars=False,
         extra_current_crf_itterate_amount=2,  # probably speeds up by a **very small** amount

@@ -135,8 +135,8 @@ class FfmpegCommand:
     input_filename: str
     codec_information: video
 
-    start_time_seconds: str
-    end_time_seconds: str
+    start_time_frame: int
+    end_time_frame: int
 
     output_filename: str
     ffmpeg_path: str
@@ -151,13 +151,21 @@ class FfmpegCommand:
     def run_ffmpeg_command(
         self, crf_value: int, override_output_file_name: str | None = None
     ) -> None:
+        # self.end_time_frame -= (
+        #     0  # TO PREVENT OVERLAP BETWEEN FRAMES --> prevent duplication
+        # )
+
+        framerate: float = get_frame_rate(self.input_filename)
+        start_time_seconds = self.start_time_frame / framerate
+        end_time_seconds = self.end_time_frame / framerate
+
         command: list[str] = [
             self.ffmpeg_path,
             # "-hide_banner -loglevel error",
             "-accurate_seek",
             f'-i "{self.input_filename}"',
-            f"-ss {self.start_time_seconds}",  # -ss After is **very important** for accuracy!!
-            f"-to {self.end_time_seconds}",
+            f"-ss {start_time_seconds}",  # -ss After is **very important** for accuracy!!
+            f"-to {end_time_seconds}",
             # f"-vf trim={self.start_time_seconds}:{self.end_time_seconds},setpts=PTS-STARTPTS",  # is this faster + as accurate?
             *self.codec_information.to_subprocess_command(),
             "-an",
@@ -391,6 +399,19 @@ def visual_comparison_of_video_with_blend_filter(
         )
     except subprocess.CalledProcessError:
         print("ERROR FAILED TO OUTPUT VISUAL COMPARISON (with blend filter)")
+
+
+# Is this necessary?
+def get_frame_rate(filename: str) -> float:
+    data = subprocess.run(
+        f"ffprobe -i {filename} -print_format json -loglevel fatal -show_streams -count_frames -select_streams v | grep r_frame_rate",
+        shell=True,
+        check=True,
+        capture_output=True,
+    ).stdout.decode()
+    return float(
+        eval(data.strip().split(":")[1].replace(",", "").replace('"', "").strip())
+    )
 
 
 # ffmpeg -i video1.mkv -i video2.mkv -filter_complex "[0:V:0]crop=960:1080:0:0[v1];[1:V:0]crop=960:1080:960:0[v2];[v1][v2]hstack=2[out]" -map "[out]" output.mkv

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import ffmpeg
 import os
 import json
 import subprocess
@@ -37,22 +38,25 @@ class VMAF:
         source_video_path: str,
         encoded_video_path: str,
         ffmpeg_path: str,
-        source_start_end_time: None | tuple[str, str] = None,
-        encode_start_end_time: None | tuple[str, str] = None,
+        source_start_end_frame: None | tuple[int, int] = None,
+        encode_start_end_frame: None | tuple[int, int] = None,
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
     ) -> float:
         print("Running FFMPEG COMMAND for vmaf")
         ffmpeg_command: list[str] = [ffmpeg_path, "-hide_banner"]
+        frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
 
-        if encode_start_end_time is not None:
-            ffmpeg_command.extend(["-ss", encode_start_end_time[0]])
-            ffmpeg_command.extend(["-to", encode_start_end_time[1]])
+        if encode_start_end_frame is not None:
+            ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
+            ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", encoded_video_path])
 
-        if source_start_end_time is not None:
-            ffmpeg_command.extend(["-ss", source_start_end_time[0]])
-            ffmpeg_command.extend(["-to", source_start_end_time[1]])
+        if source_start_end_frame is not None:
+            ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
+            ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", source_video_path])
 
         # https://www.bannerbear.com/blog/how-to-trim-a-video-using-ffmpeg/#:~:text=You%20can%20trim%20the%20input%20video%20to%20a%20specific%20duration,the%20beginning%20of%20the%20video.&text=In%20the%20command%20above%2C%20%2Dvf,the%20duration%20to%203%20seconds.
@@ -99,22 +103,25 @@ class VMAF:
         source_video_path: str,
         encoded_video_path: str,
         ffmpeg_path: str,
-        source_start_end_time: None | tuple[str, str] = None,
-        encode_start_end_time: None | tuple[str, str] = None,
+        source_start_end_frame: None | tuple[int, int] = None,
+        encode_start_end_frame: None | tuple[int, int] = None,
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
     ) -> list[float]:
         print("Running FFMPEG-throughout COMMAND for vmaf")
         ffmpeg_command: list[str] = [ffmpeg_path, "-hide_banner"]
+        frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
 
-        if encode_start_end_time is not None:
-            ffmpeg_command.extend(["-ss", encode_start_end_time[0]])
-            ffmpeg_command.extend(["-to", encode_start_end_time[1]])
+        if encode_start_end_frame is not None:
+            ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
+            ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", encoded_video_path])
 
-        if source_start_end_time is not None:
-            ffmpeg_command.extend(["-ss", source_start_end_time[0]])
-            ffmpeg_command.extend(["-to", source_start_end_time[1]])
+        if source_start_end_frame is not None:
+            ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
+            ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", source_video_path])
 
         ffmpeg_command.extend(
@@ -130,6 +137,7 @@ class VMAF:
         )
 
         try:
+            print(f"RUNNNING COMMAND: {" ".join(ffmpeg_command)}")
             _ = subprocess.run(" ".join(ffmpeg_command), shell=True, check=True)
         except FileNotFoundError as e:
             print("WARNING: FFMPEG NOT FOUND ON SYSTEM!!")

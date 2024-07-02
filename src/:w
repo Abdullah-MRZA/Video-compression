@@ -114,7 +114,8 @@ def compress_video(
             _compress_video_part(
                 input_filename=input_filename_with_extension,
                 output_filename=TEMPORARY_FILENAMES(part),  # changed to always use mkv
-                video_part_frame_data=scenes,
+                beginning_part_data_frame_str=scenes,
+                end_part_data_frame_str=scenes,
                 heuristic_type=heuristic_type,
                 unique_identifier=str(part),
                 crop_black_bars_size=crop_black_bars_size,
@@ -249,7 +250,8 @@ def compress_video(
 def _compress_video_part(
     input_filename: str,
     output_filename: str,
-    video_part_frame_data: scene_detection.scene_data,
+    beginning_part_data_frame_str: scene_detection.scene_data,
+    end_part_data_frame_str: scene_detection.scene_data,
     heuristic_type: ffmpeg_heuristics.heuristic,
     unique_identifier: str,
     crop_black_bars_size: str | None,
@@ -273,8 +275,8 @@ def _compress_video_part(
         input_filename=input_filename,
         output_filename=tempoary_video_file_name,
         codec_information=ffmpeg_codec_information,
-        start_time_frame=video_part_frame_data.start_frame,
-        end_time_frame=video_part_frame_data.end_frame,
+        start_time_frame=beginning_part_data_frame_str.start_frame,
+        end_time_frame=end_part_data_frame_str.end_frame,
         crop_black_bars_size=crop_black_bars_size,
         bit_depth=bit_depth,
         keyframe_placement=keyframe_placement,
@@ -302,8 +304,8 @@ def _compress_video_part(
                 source_video_path=input_filename,
                 encoded_video_path=tempoary_video_file_name,
                 source_start_end_frame=(
-                    video_part_frame_data.start_frame,
-                    video_part_frame_data.end_frame,
+                    beginning_part_data_frame_str.start_frame,
+                    end_part_data_frame_str.end_frame,
                 ),
                 encode_start_end_frame=None,
                 ffmpeg_path=ffmpeg_path,
@@ -315,8 +317,7 @@ def _compress_video_part(
             all_heuristic_crf_data.update({current_crf_heuristic: current_crf})
 
             # ASSUMPTION THAT BIGGER IS BETTER (WARNING --> MAY NOT ALWAYS BE THE CASE??)
-            # Also, is round too imprecise?
-            if round(current_crf_heuristic) == heuristic_type.target_score:
+            if int(current_crf_heuristic) == heuristic_type.target_score:
                 log.debug("EXACT HEURISTIC VALUE MATCHED!")
                 break  # very unlikely to get here
             elif current_crf_heuristic > heuristic_type.target_score:
