@@ -1,21 +1,19 @@
 # Video compression
 
-A test for compressing videos efficiently.
-
-
-## Planned Features
-
-- [x] Target quality (eg VMAF, etc) instead of CRF guessing (incomplete)
-- [x] Video splitting based on scene changes
-- [x] Automatic cropping of black bars (needs testing)
-- [x] Local multithreading of rendering (for concurrent encodes)
+A test for compressing videos extremely efficiently.
 
 
 > [!CAUTION]
 > NOTE: this is still a **work in progress!!!**
 
+## Planned Features
 
-If there is a feature you would like to implement, get in touch!
+- [x] Target quality (eg VMAF, etc) instead of CRF guessing (partially incomplete)
+- [x] Video splitting based on scene changes
+- [x] Automatic cropping of black bars (**needs testing**)
+- [x] Local multithreading of rendering (for concurrent encodes)
+
+If there is a feature you would like to implement, or have any other way you could help, get in touch!
 
 ## Possible features
 
