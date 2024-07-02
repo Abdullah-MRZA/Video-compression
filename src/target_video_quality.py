@@ -10,6 +10,7 @@ import scene_detection
 import logging
 from rich.logging import RichHandler
 import time
+import concurrent.futures
 
 from rich.traceback import install
 
@@ -62,7 +63,7 @@ def compress_video(
     scene_detection_threshold: float = 27.0,
     recombine_audio_from_input_file: bool = True,
     # extra_ffmpeg_commands: str | None = None,
-    # multithreading_threads: int = 1,
+    multithreading_threads: int = 1,
     # minimum_scene_length_seconds: int | None = 10,
     compare_final_video_using_difference: str | None = "Comparison_difference.mp4",
 ) -> compressing_video_time_data:
@@ -108,7 +109,9 @@ def compress_video(
     # video_data_crf_heuristic: list[tuple[int, float]] = []
     video_data_crf_heuristic: list[video_data] = []
 
-    def compress_video_part(part: int) -> video_data:
+    def compress_video_part(
+        part: int, scenes: scene_detection.scene_data
+    ) -> tuple[int, video_data]:
         # print(f"RUNNING SECTION {part} OF SCENE")
         optimal_crf_value, heuristic_value_of_encode, time_in_heuristic = (
             _compress_video_part(
@@ -127,19 +130,37 @@ def compress_video(
         )
         time_data.total_time_in_heuristic_calculation += time_in_heuristic
 
-        return video_data(
+        return part, video_data(
             optimal_crf=optimal_crf_value,
             heuristic_value=heuristic_value_of_encode,
         )
 
-    with progress:
-        for i, scenes in progress.track(  # progressive, single-threaded approach
-            list(enumerate(video_scenes)),  # doesn't work with just enumerate
-            description="[yellow]Processing scenes[/yellow]",
-        ):
-            start_time = time.perf_counter()
-            video_data_crf_heuristic.append(compress_video_part(i))
-            time_data.total_time_rendering += time.perf_counter() - start_time
+    # with progress:
+    #     for i, scenes in progress.track(  # progressive, single-threaded approach
+    #         list(enumerate(video_scenes)),  # doesn't work with just enumerate
+    #         description="[yellow]Processing scenes[/yellow]",
+    #     ):
+    #         start_time = time.perf_counter()
+    #         video_data_crf_heuristic.append(compress_video_part(i, scenes)[1])
+    #         time_data.total_time_rendering += time.perf_counter() - start_time
+
+    start_time = time.perf_counter()  # Multithreaded approach
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=multithreading_threads
+    ) as executor:
+        # processes = []
+        results = list(
+            executor.map(compress_video_part, range(len(video_scenes)), video_scenes)
+        )
+        # for part, scene in enumerate(video_scenes):
+        #     processes.append(executor.submit(compress_video_part, part, scene))
+        #
+        # results = concurrent.futures.as_completed(processes)
+        results = sorted(results)
+        video_data_crf_heuristic.extend(x[1] for x in results)
+    time_data.total_time_rendering += time.perf_counter() - start_time
+
+    # TEST
 
     with rich_console.status("Concatenating temporary video files to final file"):
         ffmpeg.concatenate_video_files(

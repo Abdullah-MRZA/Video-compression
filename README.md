@@ -8,7 +8,7 @@ A test for compressing videos efficiently.
 - [x] Target quality (eg VMAF, etc) instead of CRF guessing (incomplete)
 - [x] Video splitting based on scene changes
 - [x] Automatic cropping of black bars (needs testing)
-- [ ] Local multithreading of rendering (for concurrent encodes)
+- [x] Local multithreading of rendering (for concurrent encodes)
 
 
 > [!CAUTION]
@@ -22,3 +22,11 @@ If there is a feature you would like to implement, get in touch!
 - [ ] Adding video metadata
 - [ ] HDR support?
 - [ ] Shared rendering between computers?
+
+## Documentation?
+
+This piece of software is constantly adapting and changing. Any documentation I could write would become obsolete on any new commit I make.
+
+This software is mainly a tinkerers tool, and requires in-depth knowledge of video compression, python, and heuristics to even function correctly
+
+In the future, I may make it more-user friendly, but at the moment I am prioritising development. 

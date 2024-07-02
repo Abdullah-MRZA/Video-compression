@@ -7,8 +7,7 @@ from rich import print
 
 # TODO: Add these features
 # - Ability to restore from a crash (caching)
-# - Custom piping of ffmpeg
-# - multithreading rendering? (though I probably won't benefit from this)
+# - Custom piping of ffmpeg?
 # - Add a separate audio encoding parameters?
 # - Better time --> Shows how much time spent in encoding/VMAF/etc (and shows at end of render)
 
@@ -42,6 +41,7 @@ def main() -> None:
         keyframe_placement=300,
         # for testing
         # delete_tempoary_files=False,
+        multithreading_threads=2,
     )
 
     print()
