@@ -32,20 +32,26 @@ def compressing_video(
     print(video_scenes)
 
     # for i, video_section in enumerate(video_scenes):
-    with progress:
-        for i, video_section in progress.track(list(enumerate(video_scenes))):
-            optimal_crf, heuristic_reached = _compress_video_section(
-                full_input_filename,
-                input_filename_data,
-                _temporary_file_names(i),
-                codec,
-                heuristic,
-                video_section.start_frame,
-                video_section.end_frame,
-            )
-            optimal_crf_list.append(
-                (video_section.start_frame, optimal_crf, heuristic_reached)
-            )
+    # with progress:
+    #     for i, video_section in progress.track(list(enumerate(video_scenes))):
+    def compress_video_section_call(
+        section: int, video_section: scene_detection.SceneData
+    ) -> tuple[int, float]:
+        optimal_crf, heuristic_reached = _compress_video_section(
+            full_input_filename,
+            input_filename_data,
+            _temporary_file_names(section),
+            codec,
+            heuristic,
+            video_section.start_frame,
+            video_section.end_frame,
+        )
+        return optimal_crf, heuristic_reached
+
+    for i, video_section in enumerate(video_scenes):
+        optimal_crf_list.append(
+            (video_section.start_frame, *compress_video_section_call(i, video_section))
+        )
 
     ffmpeg.concatenate_video_files(
         [_temporary_file_names(x) for x in range(len(video_scenes))],
@@ -148,5 +154,5 @@ def _compress_video_section(
 
 
 compressing_video(
-    "small-trim.mp4", "temp.mkv", ffmpeg.SVTAV1(), ffmpeg_heuristics.VMAF(90)
+    "small-trim.mp4", "temp.mkv", ffmpeg.H264(), ffmpeg_heuristics.VMAF(90)
 )
