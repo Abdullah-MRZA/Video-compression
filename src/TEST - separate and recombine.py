@@ -7,8 +7,9 @@ import scene_detection
 # import subprocess
 
 
-input_file = "short-smallest.mp4"
-output_file = "testing-functionality-file.mp4"
+# input_file = "short-smallest.mp4"
+input_file = "large-trim.mp4"
+output_file = "temp.mp4"
 
 
 def print_frames_count(file_name: str, video_name: str) -> None:
@@ -18,9 +19,9 @@ def print_frames_count(file_name: str, video_name: str) -> None:
     )
 
 
-class split_rejoin_on_scenes_test:
+class SplitRejoinOnScenesTest:
     def __init__(self) -> None:
-        scenes = scene_detection.find_scenes(input_file, threshold=27)
+        scenes = scene_detection.find_scenes(input_file, threshold=50)
         output_file_names = [f"{x}-{output_file}" for x in range(len(scenes))]
 
         self.split_usual_method(scenes, output_file_names)
@@ -45,7 +46,7 @@ class split_rejoin_on_scenes_test:
             source_start_end_frame=(10, 100),
         )
 
-        with graph_generate.linegraph_image(
+        with graph_generate.LinegraphImage(
             "comparison_graph",
             "png",
             "TEST - compare VMAF with almost lossless",
@@ -72,12 +73,13 @@ class split_rejoin_on_scenes_test:
     ########## Spliting methods
 
     def split_usual_method(
-        self, scenes: list[scene_detection.scene_data], output_file_names: list[str]
+        self, scenes: list[scene_detection.SceneData], output_file_names: list[str]
     ) -> None:
         for i, scene in enumerate(scenes):
             with ffmpeg.FfmpegCommand(
                 input_file,
-                ffmpeg.SVTAV1(),
+                # ffmpeg.SVTAV1(),
+                ffmpeg.H264(preset="fast"),
                 scene.start_frame,
                 scene.end_frame,
                 output_file_names[i],
@@ -91,7 +93,7 @@ class split_rejoin_on_scenes_test:
                 )
 
     def split_using_segment_muxer_fragile_implementation(
-        self, scenes: list[scene_detection.scene_data], output_file_names: list[str]
+        self, scenes: list[scene_detection.SceneData], output_file_names: list[str]
     ):
         # for scene, filename in zip(scenes, output_file_names):
         segment_times = ",".join(str(x.start_timecode) for x in scenes)
@@ -107,7 +109,7 @@ class split_rejoin_on_scenes_test:
 def main() -> None:
     """Running tests to ensure functions are working"""
     _ = (
-        split_rejoin_on_scenes_test()
+        SplitRejoinOnScenesTest()
     )  # This has shown that it is definitely a video splitting problem
 
 

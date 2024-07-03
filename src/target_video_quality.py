@@ -11,6 +11,7 @@ import logging
 from rich.logging import RichHandler
 import time
 import concurrent.futures
+# import pickle
 
 from rich.traceback import install
 
@@ -38,8 +39,17 @@ def TEMPORARY_FILENAMES(x: int) -> str:
     return f"{x}-part.mkv"
 
 
+def is_macbook_screen_closed() -> bool:
+    result_val = subprocess.run(
+        "ioreg -r -k AppleClamshellState -d 4 | grep AppleClamshellState  | head -1",
+        shell=True,
+        capture_output=True,
+    ).stdout.decode()
+    return "yes" == result_val.split()[-1].lower()
+
+
 @dataclass()
-class compressing_video_time_data:
+class CompressingVideoTimeData:
     total_time_rendering: float = 0
     total_time_in_heuristic_calculation: float = 0
 
@@ -66,7 +76,7 @@ def compress_video(
     multithreading_threads: int = 1,
     # minimum_scene_length_seconds: int | None = 10,
     compare_final_video_using_difference: str | None = "Comparison_difference.mp4",
-) -> compressing_video_time_data:
+) -> CompressingVideoTimeData:
     """
     This does practically all of the calculations
     This splits the video files into scenes, and then compresses them,
@@ -74,7 +84,7 @@ def compress_video(
     This also recombines the video at the end
     """
 
-    time_data = compressing_video_time_data()
+    time_data = CompressingVideoTimeData(0, 0)
 
     if output_filename_with_extension is None:
         output_filename_with_extension = (
@@ -88,30 +98,30 @@ def compress_video(
         )
 
     with rich_console.status("Calculating scenes"):
-        video_scenes: list[scene_detection.scene_data] = scene_detection.find_scenes(
+        video_scenes: list[scene_detection.SceneData] = scene_detection.find_scenes(
             video_path=input_filename_with_extension,
             threshold=scene_detection_threshold,
         )
 
-    log.info(f"{video_scenes=}")
-    log.info(f"Total Scenes in input file: {len(video_scenes)}\n")
-    log.info(
+    log.debug(f"{video_scenes=}")
+    log.debug(f"Total Scenes in input file: {len(video_scenes)}\n")
+    log.debug(
         f"scene lengths (in frames): [{', '.join(str(x.end_frame - x.start_frame) for x in video_scenes)}]"
     )
 
     # FRAMES_PER_SECOND = video_scenes[0]. / video_scenes[0].end_frame
 
     @dataclass()
-    class video_data:
+    class VideoData:
         optimal_crf: int
         heuristic_value: float
 
     # video_data_crf_heuristic: list[tuple[int, float]] = []
-    video_data_crf_heuristic: list[video_data] = []
+    video_data_crf_heuristic: list[VideoData] = []
 
     def compress_video_part(
-        part: int, scenes: scene_detection.scene_data
-    ) -> tuple[int, video_data]:
+        part: int, scenes: scene_detection.SceneData
+    ) -> tuple[int, VideoData]:
         # print(f"RUNNING SECTION {part} OF SCENE")
         optimal_crf_value, heuristic_value_of_encode, time_in_heuristic = (
             _compress_video_part(
@@ -130,7 +140,7 @@ def compress_video(
         )
         time_data.total_time_in_heuristic_calculation += time_in_heuristic
 
-        return part, video_data(
+        return part, VideoData(
             optimal_crf=optimal_crf_value,
             heuristic_value=heuristic_value_of_encode,
         )
@@ -152,15 +162,10 @@ def compress_video(
         results = list(
             executor.map(compress_video_part, range(len(video_scenes)), video_scenes)
         )
-        # for part, scene in enumerate(video_scenes):
-        #     processes.append(executor.submit(compress_video_part, part, scene))
-        #
-        # results = concurrent.futures.as_completed(processes)
+
         results = sorted(results)
         video_data_crf_heuristic.extend(x[1] for x in results)
     time_data.total_time_rendering += time.perf_counter() - start_time
-
-    # TEST
 
     with rich_console.status("Concatenating temporary video files to final file"):
         ffmpeg.concatenate_video_files(
@@ -170,7 +175,7 @@ def compress_video(
         )
 
     with rich_console.status("Generating graph of data"):
-        with graph_generate.linegraph_image(
+        with graph_generate.LinegraphImage(
             filename_without_extension="Video_information_per_scene",
             title_of_graph=f"CRF and {heuristic_type.NAME} throughout video",
             x_axis_name="Frames",
@@ -209,6 +214,15 @@ def compress_video(
                 # testing_y_axis_range=dict(range=[0, 100]),
             )
 
+            graph.add_linegraph(
+                x_data=[x.start_frame for x in video_scenes],
+                y_data=[x.heuristic_value for x in video_data_crf_heuristic],
+                name=f"{heuristic_type.NAME} target",
+                mode="lines+markers",
+                on_left_right_side="left",
+                y_axis_range=heuristic_type.RANGE,
+            )
+
     # graph = graph_generate.linegraph()
     # graph.add_linegraph()
 
@@ -223,7 +237,7 @@ def compress_video(
     if recombine_audio_from_input_file:
         with rich_console.status("Recombining audio from source with rendered video"):
             # Do I need this check?
-            if ffmpeg_heuristics.ffprobe_information.check_contains_any_audio(
+            if ffmpeg_heuristics.FfprobeInformation.check_contains_any_audio(
                 input_filename_with_extension, "ffprobe"
             ):
                 try:
@@ -270,7 +284,7 @@ def compress_video(
 def _compress_video_part(
     input_filename: str,
     output_filename: str,
-    video_part_frame_data: scene_detection.scene_data,
+    video_part_frame_data: scene_detection.SceneData,
     heuristic_type: ffmpeg_heuristics.heuristic,
     unique_identifier: str,
     crop_black_bars_size: str | None,
@@ -314,19 +328,29 @@ def _compress_video_part(
             )
             * extra_current_crf_itterate_amount
         ) not in all_heuristic_crf_data.values():
-            log.debug(f"RUNNING CRF VALUE {current_crf}")
+            # Prevent running when screen is closed
+            while is_macbook_screen_closed():
+                time.sleep(1)
 
+            log.debug(f"RUNNING CRF VALUE {current_crf}")
             video_command.run_ffmpeg_command(current_crf)
 
+            log.debug(f"Determining heuristic value for CRF value {current_crf}")
             start_time = time.perf_counter()
-            current_crf_heuristic: float = heuristic_type.overall_summary(
+            # current_crf_heuristic: float = heuristic_type.summary_of_overall_video(
+            current_crf_heuristic = heuristic_type.summary_of_overall_video(
                 source_video_path=input_filename,
                 encoded_video_path=tempoary_video_file_name,
                 source_start_end_frame=(
                     video_part_frame_data.start_frame,
                     video_part_frame_data.end_frame,
                 ),
-                encode_start_end_frame=None,
+                encode_start_end_frame=(
+                    0,
+                    ffmpeg.get_video_metadata(
+                        "ffprobe", tempoary_video_file_name
+                    ).total_frames,
+                ),
                 ffmpeg_path=ffmpeg_path,
             )
             total_time_in_heuristic_calculation_local += (

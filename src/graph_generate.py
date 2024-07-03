@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 
-class linegraph_image:
+class LinegraphImage:
     def __init__(
         self,
         filename_without_extension: str,

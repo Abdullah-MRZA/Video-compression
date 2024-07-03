@@ -33,7 +33,7 @@ class VMAF:
     NAME: str = "VMAF"
     RANGE: range = range(0, 100 + 1)
 
-    def overall_summary(
+    def summary_of_overall_video(
         self,
         source_video_path: str,
         encoded_video_path: str,
@@ -44,19 +44,19 @@ class VMAF:
         subsample: int = 2,  # Calculate per X frames
     ) -> float:
         print("Running FFMPEG COMMAND for vmaf")
-        ffmpeg_command: list[str] = [ffmpeg_path, "-hide_banner"]
+        ffmpeg_command: list[str] = [ffmpeg_path]
         frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
 
         if encode_start_end_frame is not None:
             ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
             ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
-        ffmpeg_command.extend(["-r", str(frame_rate)])
+        # ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", encoded_video_path])
 
         if source_start_end_frame is not None:
             ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
             ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
-        ffmpeg_command.extend(["-r", str(frame_rate)])
+        # ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", source_video_path])
 
         # https://www.bannerbear.com/blog/how-to-trim-a-video-using-ffmpeg/#:~:text=You%20can%20trim%20the%20input%20video%20to%20a%20specific%20duration,the%20beginning%20of%20the%20video.&text=In%20the%20command%20above%2C%20%2Dvf,the%20duration%20to%203%20seconds.
@@ -64,10 +64,11 @@ class VMAF:
 
         ffmpeg_command.extend(
             [
+                "-hide_banner",  #  -loglevel error --> need to read output!
                 "-an",  # Remove audio
                 "-lavfi",
-                # f'"[0:v]setpts=PTS-STARTPTS[reference];[1:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}"',
-                f'"libvmaf=n_threads={threads_to_use}:n_subsample={subsample}"',
+                f'"[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}"',
+                # f'"libvmaf=n_threads={threads_to_use}:n_subsample={subsample}"',
                 "-f",
                 "null",
                 "-",
@@ -109,27 +110,28 @@ class VMAF:
         subsample: int = 2,  # Calculate per X frames
     ) -> list[float]:
         print("Running FFMPEG-throughout COMMAND for vmaf")
-        ffmpeg_command: list[str] = [ffmpeg_path, "-hide_banner"]
+        ffmpeg_command: list[str] = [ffmpeg_path]
         frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
 
         if encode_start_end_frame is not None:
             ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
             ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
-        ffmpeg_command.extend(["-r", str(frame_rate)])
+        # ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", encoded_video_path])
 
         if source_start_end_frame is not None:
             ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
             ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
-        ffmpeg_command.extend(["-r", str(frame_rate)])
+        # ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", source_video_path])
 
         ffmpeg_command.extend(
             [
+                "-hide_banner -loglevel error",
                 "-an",  # Remove audio
                 "-lavfi",
-                # f'"[0:v]setpts=PTS-STARTPTS[reference];[1:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path=log.json"',
-                f'"libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path=log.json"',
+                f'"[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path=log.json"',
+                # f'"libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path=log.json"',
                 "-f",
                 "null",
                 "-",
@@ -221,7 +223,7 @@ def crop_black_bars(source_video_path: str, ffmpeg_path: str) -> str:
     return data.rsplit(maxsplit=1)[-1]
 
 
-class ffprobe_information:
+class FfprobeInformation:
     @staticmethod
     def check_contains_any_audio(
         input_filename_with_extension: str, ffprobe_path: str
