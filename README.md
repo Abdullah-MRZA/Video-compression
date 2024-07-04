@@ -13,7 +13,7 @@ A test for compressing videos extremely efficiently.
 - [x] Automatic cropping of black bars (**needs testing**)
 - [x] Local multithreading of rendering (for concurrent encodes)
 
-If there is a feature you would like to implement, or have any other way you could help, get in touch!
+If there is a *feature* you would like to implement, or have any other way you could help, get in touch!
 
 ## Possible features
 

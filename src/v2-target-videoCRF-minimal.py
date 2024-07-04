@@ -106,8 +106,11 @@ def compressing_video(
             y_axis_range=heuristic.RANGE,
         )
 
-    # for x in range(len(video_scenes)):
-    #     os.remove(_temporary_file_names(x))
+    for x in range(len(video_scenes)):
+        os.remove(_temporary_file_names(x))
+
+    # if input_filename_data.contains_audio:
+    #     ...
 
     print(ffmpeg.get_video_metadata("ffprobe", full_input_filename))
     print(ffmpeg.get_video_metadata("ffprobe", full_output_filename))
@@ -137,19 +140,19 @@ def _compress_video_section(
         "yuv420p",
         300,
     ) as video_command:
-        # bottom_crf_value = min(codec.ACCEPTED_CRF_RANGE)
-        # top_crf_value = max(codec.ACCEPTED_CRF_RANGE)
+        bottom_crf_value = min(codec.ACCEPTED_CRF_RANGE)
+        top_crf_value = max(codec.ACCEPTED_CRF_RANGE)
 
         all_heuristic_crf_values: dict[int, float] = {}
 
-        temp_first_done = False
-        # while (
-        #     current_crf := (top_crf_value + bottom_crf_value) // 2
-        # ) not in all_heuristic_crf_values.keys():
-        while not temp_first_done:
-            temp_first_done = True
-            # video_command.run_ffmpeg_command(current_crf)
-            video_command.run_ffmpeg_command(40)
+        # temp_first_done = False
+        while (
+            current_crf := (top_crf_value + bottom_crf_value) // 2
+        ) not in all_heuristic_crf_values.keys():
+            # while not temp_first_done:
+            #     temp_first_done = True
+            video_command.run_ffmpeg_command(current_crf)
+            # video_command.run_ffmpeg_command(40)
 
             current_heuristic = heuristic.summary_of_overall_video(
                 full_input_filename,
@@ -160,15 +163,15 @@ def _compress_video_section(
 
             print(current_heuristic)
 
-            # if round(current_heuristic) == heuristic.target_score:
-            #     break
-            # elif current_heuristic > heuristic.target_score:
-            #     bottom_crf_value = current_crf
-            # elif current_heuristic < heuristic.target_score:
-            #     top_crf_value = current_crf
+            all_heuristic_crf_values.update({current_crf: current_heuristic})
+            # all_heuristic_crf_values.update({40: current_heuristic})
 
-            # all_heuristic_crf_values.update({current_crf: current_heuristic})
-            all_heuristic_crf_values.update({40: current_heuristic})
+            if round(current_heuristic) == heuristic.target_score:
+                break
+            elif current_heuristic > heuristic.target_score:
+                bottom_crf_value = current_crf
+            elif current_heuristic < heuristic.target_score:
+                top_crf_value = current_crf
 
         closest_value = min(
             (abs(x[1] - heuristic.target_score), x)
@@ -179,9 +182,11 @@ def _compress_video_section(
 
 
 compressing_video(
-    "small-trim.mp4",
+    "large-trim.mp4",
     "temp.mkv",
-    ffmpeg.H264(),
+    # ffmpeg.H264(),
+    ffmpeg.SVTAV1(),
     ffmpeg_heuristics.VMAF(90),
-    scene_detection_threshold=27,
+    scene_detection_threshold=40,
+    multithreading_threads=2,
 )
