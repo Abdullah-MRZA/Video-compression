@@ -216,8 +216,8 @@ def concatenate_video_files(
     # _ = os.system(
     #     f'ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"'  # -hide_banner -loglevel error
     # )
-    _ = subprocess.run(
-        f'{ffmpeg_path} -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"',
+    _ = subprocess.run(  # -safe 0
+        f'{ffmpeg_path} -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"',
         shell=True,
         check=True,
     )

@@ -50,13 +50,13 @@ class VMAF:
         if encode_start_end_frame is not None:
             ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
             ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
-        # ffmpeg_command.extend(["-r", str(frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])  # important to include
         ffmpeg_command.extend(["-i", encoded_video_path])
 
         if source_start_end_frame is not None:
             ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
             ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
-        # ffmpeg_command.extend(["-r", str(frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", source_video_path])
 
         # https://www.bannerbear.com/blog/how-to-trim-a-video-using-ffmpeg/#:~:text=You%20can%20trim%20the%20input%20video%20to%20a%20specific%20duration,the%20beginning%20of%20the%20video.&text=In%20the%20command%20above%2C%20%2Dvf,the%20duration%20to%203%20seconds.
@@ -116,13 +116,13 @@ class VMAF:
         if encode_start_end_frame is not None:
             ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
             ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
-        # ffmpeg_command.extend(["-r", str(frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", encoded_video_path])
 
         if source_start_end_frame is not None:
             ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
             ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
-        # ffmpeg_command.extend(["-r", str(frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", source_video_path])
 
         ffmpeg_command.extend(
