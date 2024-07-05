@@ -5,6 +5,7 @@ A test for compressing videos extremely efficiently.
 
 > [!CAUTION]
 > NOTE: this is still a **work in progress!!!**
+> There is still a lot of work left to do, for a fully functional build
 
 ## Planned Features
 
