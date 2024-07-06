@@ -84,6 +84,7 @@ def compress_video(
     This also recombines the video at the end
     """
 
+    return
     time_data = CompressingVideoTimeData(0, 0)
 
     if output_filename_with_extension is None:

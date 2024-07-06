@@ -19,11 +19,12 @@ def compressing_video(
     full_output_filename: str,
     codec: ffmpeg.video,
     heuristic: ffmpeg_heuristics.heuristic,
-    scene_detection_threshold: int = 27,
+    # scene_detection_threshold: int = 27,
+    minimum_scene_length_seconds: float,
     multithreading_threads: int = 2,
 ) -> None:
     video_scenes = scene_detection.find_scenes(
-        full_input_filename, scene_detection_threshold
+        full_input_filename, minimum_scene_length_seconds
     )
 
     input_filename_data = ffmpeg.get_video_metadata("ffprobe", full_input_filename)
@@ -84,13 +85,10 @@ def compressing_video(
             x_data=list(range(input_filename_data.total_frames)),
             y_data=heuristic.throughout_video(
                 full_input_filename,
+                # "TEMP-1.mkv",
                 full_output_filename,
                 "ffmpeg",
                 subsample=1,
-                # "TEMP-0.mkv",
-                # full_output_filename,
-                # "ffmpeg",
-                # subsample=1,
             ),
             name=f"found {heuristic.NAME}",
             mode="lines",
@@ -112,8 +110,12 @@ def compressing_video(
     # if input_filename_data.contains_audio:
     #     ...
 
-    print(ffmpeg.get_video_metadata("ffprobe", full_input_filename))
-    print(ffmpeg.get_video_metadata("ffprobe", full_output_filename))
+    ffmpeg.visual_comparison_of_video_with_blend_filter(
+        full_input_filename, full_output_filename, "ffmpeg", "visual_comparison.mkv"
+    )
+
+    print(ffmpeg.get_video_metadata("ffprobe", full_input_filename, False))
+    print(ffmpeg.get_video_metadata("ffprobe", full_output_filename, False))
 
 
 def _temporary_file_names(position: int) -> str:
@@ -182,11 +184,12 @@ def _compress_video_section(
 
 
 compressing_video(
-    "large-trim.mp4",
+    "input.mp4",
     "temp.mkv",
-    # ffmpeg.H264(),
-    ffmpeg.SVTAV1(),
+    ffmpeg.H264(tune="animation", preset="veryfast"),
+    # ffmpeg.SVTAV1(),
     ffmpeg_heuristics.VMAF(90),
-    scene_detection_threshold=40,
+    # scene_detection_threshold=40,
+    minimum_scene_length_seconds=0.6,
     multithreading_threads=2,
 )

@@ -4,6 +4,7 @@ from types import TracebackType
 from typing import Literal
 import json
 import os
+from rich import print
 
 from rich.traceback import install
 
@@ -160,10 +161,11 @@ class FfmpegCommand:
         start_time_seconds = self.start_time_frame / framerate
         end_time_seconds = self.end_time_frame / framerate
 
-        command: list[str] = [
+        command: list[str] = [  # ADD -r COMMANDD!!
             self.ffmpeg_path,
             "-hide_banner -loglevel error",
             "-accurate_seek",
+            # f"-r {framerate}",
             # f"-ss {start_time_seconds}",  # NOTE: IS THIS OKAY??? (SEEMS SO??) + IS FASTER?
             # f"-to {end_time_seconds}",
             f'-i "{self.input_filename}"',
@@ -256,7 +258,9 @@ class VideoMetadata:
     # is_HDR: bool
 
 
-def get_video_metadata(ffprobe_path: str, filename: str) -> VideoMetadata:
+def get_video_metadata(
+    ffprobe_path: str, filename: str, print_raw: bool = False
+) -> VideoMetadata:
     # another command: % ffprobe -i small-trim.mp4 -print_format json -loglevel fatal -show_streams -count_frames
     data = subprocess.run(
         f'{ffprobe_path} -v quiet -print_format json -show_format -show_streams -count_frames "{filename}"',
@@ -266,6 +270,9 @@ def get_video_metadata(ffprobe_path: str, filename: str) -> VideoMetadata:
     ).stdout.decode()
 
     json_data = json.loads(data)
+
+    if print_raw:
+        print(json_data)
 
     return VideoMetadata(
         file_name=json_data["format"]["filename"],  # same as `filename`...
