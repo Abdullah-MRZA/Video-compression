@@ -180,6 +180,8 @@ def _compress_video_section(
             for x in all_heuristic_crf_values.items()
         )[1]
 
+       # BUG: Check if the video produced is using the closest_value
+       # otherwise re-render
         return closest_value
 
 
