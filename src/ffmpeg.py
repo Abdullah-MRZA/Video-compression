@@ -1,4 +1,5 @@
 import subprocess
+from textwrap import dedent
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Literal
@@ -132,13 +133,40 @@ class H265:
 #     def to_subprocess_command(self) -> list[str]: ...
 
 
+class ffms2seek:
+    def __init__(
+        self, video_filename_with_extension: str, filename_vpy_without_extension: str
+    ) -> None:
+        self.filename_of_vpy = f"{filename_vpy_without_extension.replace('.', '')}.vpy"
+        # for seeking
+        with open(self.filename_of_vpy, "w") as f:
+            _ = f.write(
+                dedent(f"""
+                import vapoursynth as vs
+                core = vs.core
+                clip = core.ffms2.Source(source="{video_filename_with_extension}")
+                clip.set_output(0)
+            """)
+            )
+        # _ = input("NOTE MADE FILE")
+
+    def command(self, start_frame: int, end_frame: int) -> str:
+        return f"vspipe -s {start_frame} -e {end_frame - 1} -c y4m {self.filename_of_vpy} - |"
+
+    def __exit__(self):
+        try:
+            os.remove(self.filename_of_vpy)
+        except Exception as e:
+            print(f"WARNING: Unable to delete file: {self.filename_of_vpy}")
+
+
 @dataclass()
 class FfmpegCommand:
     input_filename: str
     codec_information: video
 
-    start_time_frame: int
-    end_time_frame: int
+    start_frame: int
+    end_frame: int
 
     output_filename: str
     ffmpeg_path: str
@@ -146,6 +174,8 @@ class FfmpegCommand:
     crop_black_bars_size: str | None
     bit_depth: bitdepth
     keyframe_placement: int | None
+
+    input_file_script_seeking: ffms2seek
 
     def __enter__(self):
         return self
@@ -157,20 +187,22 @@ class FfmpegCommand:
         #     0  # TO PREVENT OVERLAP BETWEEN FRAMES --> prevent duplication
         # )
 
-        framerate: float = get_frame_rate(self.input_filename)
-        start_time_seconds = self.start_time_frame / framerate
-        end_time_seconds = self.end_time_frame / framerate
+        # framerate: float = get_frame_rate(self.input_filename)
+        # start_time_seconds = self.start_frame / framerate
+        # end_time_seconds = self.end_frame / framerate
 
         command: list[str] = [  # ADD -r COMMANDD!!
+            self.input_file_script_seeking.command(self.start_frame, self.end_frame),
             self.ffmpeg_path,
             "-hide_banner -loglevel error",
-            "-accurate_seek",
+            # "-accurate_seek",
             # f"-r {framerate}",
             # f"-ss {start_time_seconds}",  # NOTE: IS THIS OKAY??? (SEEMS SO??) + IS FASTER?
             # f"-to {end_time_seconds}",
-            f'-i "{self.input_filename}"',
-            f"-ss {start_time_seconds}",  # -ss After is **very important** for accuracy!!
-            f"-to {end_time_seconds}",
+            # f'-i "{self.input_filename}"',
+            "-i -",
+            # f"-ss {start_time_seconds}",  # -ss After is **very important** for accuracy!!
+            # f"-to {end_time_seconds}",
             # f"-vf trim={self.start_time_seconds}:{self.end_time_seconds},setpts=PTS-STARTPTS",  # is this faster + as accurate?
             *self.codec_information.to_subprocess_command(),
             "-an",
@@ -193,13 +225,17 @@ class FfmpegCommand:
         # _ = os.system(" ".join(command))
         _ = subprocess.run(" ".join(command), shell=True, check=True)
 
+        # try:
+        #     os.remove(script_name)
+        # except FileNotFoundError:
+        #     print("Error removing script")
+
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
         exc_traceback: TracebackType | None,
-    ) -> None:
-        pass
+    ) -> None: ...
 
 
 def concatenate_video_files(

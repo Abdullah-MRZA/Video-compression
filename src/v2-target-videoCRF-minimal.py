@@ -27,11 +27,13 @@ def compressing_video(
         full_input_filename, minimum_scene_length_seconds
     )
 
+    print(video_scenes)
+
     input_filename_data = ffmpeg.get_video_metadata("ffprobe", full_input_filename)
 
     optimal_crf_list: list[tuple[int, int, float]] = []
 
-    print(video_scenes)
+    seeking_data_input_file = ffmpeg.ffms2seek(full_input_filename, full_input_filename)
 
     # for i, video_section in enumerate(video_scenes):
     # with progress:
@@ -47,6 +49,7 @@ def compressing_video(
             heuristic,
             video_section.start_frame,
             video_section.end_frame,
+            seeking_data_input_file,
         )
         return section, video_section.start_frame, optimal_crf, heuristic_reached
 
@@ -71,7 +74,10 @@ def compressing_video(
     )
 
     with graph_generate.LinegraphImage(
-        "video_graph", "png", f"CRF & {heuristic.NAME}", "frames"
+        "video_graph",
+        "png",
+        f"CRF & {heuristic.NAME} - {full_input_filename} to {full_output_filename}",
+        "frames",
     ) as graph_instance:
         graph_instance.add_linegraph(
             x_data=[x[0] for x in optimal_crf_list],
@@ -88,6 +94,7 @@ def compressing_video(
                 # "TEMP-1.mkv",
                 full_output_filename,
                 "ffmpeg",
+                seeking_data_input_file,
                 subsample=1,
             ),
             name=f"found {heuristic.NAME}",
@@ -130,6 +137,7 @@ def _compress_video_section(
     heuristic: ffmpeg_heuristics.heuristic,
     frame_start: int,
     frame_end: int,
+    input_file_script_seeking: ffmpeg.ffms2seek,
 ) -> tuple[int, float]:  # CRF + heuristic
     with ffmpeg.FfmpegCommand(
         full_input_filename,
@@ -141,6 +149,7 @@ def _compress_video_section(
         None,
         "yuv420p",
         300,
+        input_file_script_seeking,
     ) as video_command:
         bottom_crf_value = min(codec.ACCEPTED_CRF_RANGE)
         top_crf_value = max(codec.ACCEPTED_CRF_RANGE)
@@ -160,6 +169,7 @@ def _compress_video_section(
                 full_input_filename,
                 full_output_filename,
                 "ffmpeg",
+                input_file_script_seeking,
                 source_start_end_frame=(frame_start, frame_end),
             )
 
@@ -180,8 +190,10 @@ def _compress_video_section(
             for x in all_heuristic_crf_values.items()
         )[1]
 
-       # BUG: Check if the video produced is using the closest_value
-       # otherwise re-render
+        if current_crf != closest_value[0]:
+            print("DIFFERENCE -> current_crf != closest_value !!!")
+            video_command.run_ffmpeg_command(closest_value[0])
+
         return closest_value
 
 
@@ -190,8 +202,8 @@ compressing_video(
     "temp.mkv",
     ffmpeg.H264(tune="animation", preset="veryfast"),
     # ffmpeg.SVTAV1(),
-    ffmpeg_heuristics.VMAF(90),
+    ffmpeg_heuristics.VMAF(70),
     # scene_detection_threshold=40,
-    minimum_scene_length_seconds=0.6,
-    multithreading_threads=2,
+    minimum_scene_length_seconds=0,
+    multithreading_threads=4,
 )
