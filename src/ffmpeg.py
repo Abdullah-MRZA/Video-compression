@@ -175,7 +175,7 @@ class FfmpegCommand:
     bit_depth: bitdepth
     keyframe_placement: int | None
 
-    input_file_script_seeking: ffms2seek
+    input_file_script_seeking: ffms2seek | None
 
     def __enter__(self):
         return self
@@ -190,9 +190,10 @@ class FfmpegCommand:
         # framerate: float = get_frame_rate(self.input_filename)
         # start_time_seconds = self.start_frame / framerate
         # end_time_seconds = self.end_frame / framerate
-
         command: list[str] = [  # ADD -r COMMANDD!!
-            self.input_file_script_seeking.command(self.start_frame, self.end_frame),
+            self.input_file_script_seeking.command(self.start_frame, self.end_frame)
+            if self.input_file_script_seeking is not None
+            else "",
             self.ffmpeg_path,
             "-hide_banner -loglevel error",
             # "-accurate_seek",
@@ -200,7 +201,9 @@ class FfmpegCommand:
             # f"-ss {start_time_seconds}",  # NOTE: IS THIS OKAY??? (SEEMS SO??) + IS FASTER?
             # f"-to {end_time_seconds}",
             # f'-i "{self.input_filename}"',
-            "-i -",
+            "-i -"
+            if self.input_file_script_seeking is not None
+            else f"-i {self.input_filename}",
             # f"-ss {start_time_seconds}",  # -ss After is **very important** for accuracy!!
             # f"-to {end_time_seconds}",
             # f"-vf trim={self.start_time_seconds}:{self.end_time_seconds},setpts=PTS-STARTPTS",  # is this faster + as accurate?
@@ -254,6 +257,9 @@ def concatenate_video_files(
     # _ = os.system(
     #     f'ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"'  # -hide_banner -loglevel error
     # )
+    print(
+        f'RUNNING COMMAND: {ffmpeg_path} -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"'
+    )
     _ = subprocess.run(  # -safe 0 (has some wierd effect of changing DTS values)
         f'{ffmpeg_path} -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"',
         shell=True,
@@ -486,8 +492,9 @@ def visual_comparison_of_video_with_blend_filter(
     encoded_video_path: str,
     ffmpeg_path: str,
     output_filename_with_extension: str,
-    source_start_end_frame: None | tuple[int, int] = None,
-    encode_start_end_frame: None | tuple[int, int] = None,
+    # source_start_end_frame: None | tuple[int, int] = None,
+    # encode_start_end_frame: None | tuple[int, int] = None,
+    quality_crf_h264: int = 20,
 ) -> None:
     """
     ffmpeg -i original.mkv -i encoded.mkv \
@@ -496,26 +503,29 @@ def visual_comparison_of_video_with_blend_filter(
     """
     print("RUNNING visual_comparison_of_video_with_blend_filter")
     ffmpeg_command: list[str] = []
-    frame_rate = get_frame_rate(source_video_path)
+    # frame_rate = get_frame_rate(source_video_path)
 
-    if encode_start_end_frame is not None:
-        ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
-        ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
+    ffmpeg_command.append(f"{ffmpeg_path} -hide_banner -loglevel error ")
+
+    # if encode_start_end_frame is not None:
+    #     ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
+    #     ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
     ffmpeg_command.extend(["-i", encoded_video_path])
 
-    if source_start_end_frame is not None:
-        ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
-        ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
+    # if source_start_end_frame is not None:
+    #     ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
+    #     ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
     ffmpeg_command.extend(["-i", source_video_path])
+
+    ffmpeg_command.append(
+        f' -filter_complex "blend=all_mode=difference" -c:v libx264 -y -crf {quality_crf_h264} -an "{output_filename_with_extension}"'
+    )
 
     try:
         # + '-filter_complex "[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]blend=all_mode=difference" -c:v libx264 -y -crf 18 ' # this is actually harmful?? because the "start_time" in ffprobe don't line up, and this also causes them to not line up
+        # f"{ffmpeg_path} -i {encoded_video_path} -i {source_video_path} -hide_banner -loglevel error "
         _ = subprocess.run(
-            # f"{ffmpeg_path} -i {encoded_video_path} -i {source_video_path} -hide_banner -loglevel error "
-            f"{ffmpeg_path} -hide_banner -loglevel error "
-            + " ".join(ffmpeg_command)
-            + ' -filter_complex "blend=all_mode=difference" -c:v libx264 -y -crf 18 '
-            + f'-an "{output_filename_with_extension}"',
+            " ".join(ffmpeg_command),
             shell=True,
             check=True,
         )

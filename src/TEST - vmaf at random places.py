@@ -9,9 +9,11 @@ compare_file = "small-trim-crf.mp4"
 # input_file = "large-trim.mp4"
 # compare_file = "large-trim-crf.mp4"
 
+accurate_seek = ffmpeg.ffms2seek(input_file, input_file)
+
 minimum_expected_vmaf = min(
     ffmpeg_heuristics.VMAF(90).throughout_video(
-        input_file, compare_file, "ffmpeg", subsample=1
+        input_file, compare_file, "ffmpeg", accurate_seek, subsample=1
     )
 )
 
@@ -54,6 +56,7 @@ try:
             input_file,
             compare_file,
             "ffmpeg",
+            accurate_seek,
             encode_start_end_frame=(start_frame, end_frame),
             source_start_end_frame=(start_frame, end_frame),
         )
@@ -63,6 +66,7 @@ try:
                 input_file,
                 compare_file,
                 "ffmpeg",
+                accurate_seek,
                 encode_start_end_frame=(start_frame, end_frame),
                 source_start_end_frame=(start_frame, end_frame),
             )

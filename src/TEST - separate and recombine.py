@@ -6,22 +6,21 @@ import graph_generate
 import scene_detection
 # import subprocess
 
+"""
+Program to test separating a video file, and then to recombine it together?
+"""
 
 # input_file = "short-smallest.mp4"
 input_file = "large-trim.mp4"
 output_file = "temp.mp4"
 
-
-def print_frames_count(file_name: str, video_name: str) -> None:
-    print(f"Filename: {file_name} frames:")
-    _ = os.system(
-        f"ffprobe -i {file_name} -print_format json -loglevel fatal -show_streams -count_frames -select_streams v | grep frames"
-    )
+accurate_seek = ffmpeg.ffms2seek(input_file, input_file)
 
 
 class SplitRejoinOnScenesTest:
     def __init__(self) -> None:
-        scenes = scene_detection.find_scenes(input_file, threshold=50)
+        # scenes = scene_detection.find_scenes(input_file, threshold=50)
+        scenes = scene_detection.find_scenes(input_file, 0)
         output_file_names = [f"{x}-{output_file}" for x in range(len(scenes))]
 
         self.split_usual_method(scenes, output_file_names)
@@ -41,6 +40,7 @@ class SplitRejoinOnScenesTest:
             input_file,
             output_file,
             "ffmpeg",
+            accurate_seek,
             subsample=1,
             encode_start_end_frame=(10, 100),
             source_start_end_frame=(10, 100),

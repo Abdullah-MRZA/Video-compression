@@ -5,8 +5,8 @@ import graph_generate
 
 from rich.progress import Progress, TimeElapsedColumn
 from rich import print
-import os
 import concurrent.futures
+# import os
 
 progress = Progress(
     *Progress.get_default_columns(),
@@ -31,8 +31,6 @@ def compressing_video(
 
     input_filename_data = ffmpeg.get_video_metadata("ffprobe", full_input_filename)
 
-    optimal_crf_list: list[tuple[int, int, float]] = []
-
     seeking_data_input_file = ffmpeg.ffms2seek(full_input_filename, full_input_filename)
 
     # for i, video_section in enumerate(video_scenes):
@@ -40,8 +38,8 @@ def compressing_video(
     #     for i, video_section in progress.track(list(enumerate(video_scenes))):
     def compress_video_section_call(
         section: int, video_section: scene_detection.SceneData
-    ) -> tuple[int, int, int, float]:
-        optimal_crf, heuristic_reached = _compress_video_section(
+    ) -> tuple[int, int, int, float, list[float]]:
+        optimal_crf, heuristic_reached, heuristic_throughout = _compress_video_section(
             full_input_filename,
             input_filename_data,
             _temporary_file_names(section),
@@ -51,12 +49,20 @@ def compressing_video(
             video_section.end_frame,
             seeking_data_input_file,
         )
-        return section, video_section.start_frame, optimal_crf, heuristic_reached
+        return (
+            section,
+            video_section.start_frame,
+            optimal_crf,
+            heuristic_reached,
+            heuristic_throughout,
+        )
 
     # for i, video_section in enumerate(video_scenes):
     #     optimal_crf_list.append(
     #         (video_section.start_frame, *compress_video_section_call(i, video_section))
     #     )
+
+    optimal_crf_list: list[tuple[int, int, float, list[float]]] = []
 
     with concurrent.futures.ThreadPoolExecutor(multithreading_threads) as executor:
         results = list(
@@ -73,6 +79,25 @@ def compressing_video(
         "ffmpeg",
     )
 
+    # with open("concat.vpy", "w") as f:
+    #     clips = [f"clip{x}" for x in range(len(video_scenes))]
+    #     clips_text = [
+    #         f'{clips[x]} = core.ffms2.Source(source="{_temporary_file_names(x)}")'
+    #         for x in range(len(video_scenes))
+    #     ]
+    #     text = "import vapoursynth as vs\ncore = vs.core\n"
+    #     text += "\n".join(clips_text)
+    #     text += f"\ntotal_clip = {' + '.join(clips)}\n"
+    #     text += "total_clip.set_output(0)"
+    #     _ = f.write(text)
+    #
+    #     print(
+    #         f"vspipe -c y4m concat.vpy - | ffmpeg -i - -y -c copy {full_output_filename}"
+    #     )
+    #     _ = os.system(
+    #         f"vspipe -c y4m concat.vpy - | ffmpeg -i - -y -c copy {full_output_filename}"
+    #     )
+
     with graph_generate.LinegraphImage(
         "video_graph",
         "png",
@@ -87,16 +112,24 @@ def compressing_video(
             on_left_right_side="left",
             y_axis_range=codec.ACCEPTED_CRF_RANGE,
         )
+        # graph_instance.add_linegraph(
+        #     x_data=list(range(input_filename_data.total_frames)),
+        #     y_data=heuristic.throughout_video(
+        #         full_input_filename,
+        #         # "TEMP-1.mkv",
+        #         full_output_filename,
+        #         "ffmpeg",
+        #         seeking_data_input_file,
+        #         subsample=1,
+        #     ),
+        #     name=f"found {heuristic.NAME}",
+        #     mode="lines",
+        #     on_left_right_side="right",
+        #     y_axis_range=heuristic.RANGE,
+        # )
         graph_instance.add_linegraph(
-            x_data=list(range(input_filename_data.total_frames)),
-            y_data=heuristic.throughout_video(
-                full_input_filename,
-                # "TEMP-1.mkv",
-                full_output_filename,
-                "ffmpeg",
-                seeking_data_input_file,
-                subsample=1,
-            ),
+            x_data=list(range(len([y for x in optimal_crf_list for y in x[3]]))),
+            y_data=[y for x in optimal_crf_list for y in x[3]],
             name=f"found {heuristic.NAME}",
             mode="lines",
             on_left_right_side="right",
@@ -112,7 +145,11 @@ def compressing_video(
         )
 
     for x in range(len(video_scenes)):
-        os.remove(_temporary_file_names(x))
+        print(_temporary_file_names(x))
+        print(ffmpeg.get_video_metadata("ffprobe", _temporary_file_names(x), False))
+
+    # for x in range(len(video_scenes)):
+    #     os.remove(_temporary_file_names(x))
 
     # if input_filename_data.contains_audio:
     #     ...
@@ -130,7 +167,7 @@ def _temporary_file_names(position: int) -> str:
 
 
 def _compress_video_section(
-    full_input_filename: str,
+    full_input_filename_part: str,
     input_filename_data: ffmpeg.VideoMetadata,
     full_output_filename: str,
     codec: ffmpeg.video,
@@ -138,9 +175,9 @@ def _compress_video_section(
     frame_start: int,
     frame_end: int,
     input_file_script_seeking: ffmpeg.ffms2seek,
-) -> tuple[int, float]:  # CRF + heuristic
+) -> tuple[int, float, list[float]]:  # CRF + heuristic (throughout)
     with ffmpeg.FfmpegCommand(
-        full_input_filename,
+        full_input_filename_part,
         codec,
         frame_start,
         frame_end,
@@ -166,7 +203,7 @@ def _compress_video_section(
             # video_command.run_ffmpeg_command(40)
 
             current_heuristic = heuristic.summary_of_overall_video(
-                full_input_filename,
+                full_input_filename_part,
                 full_output_filename,
                 "ffmpeg",
                 input_file_script_seeking,
@@ -194,16 +231,26 @@ def _compress_video_section(
             print("DIFFERENCE -> current_crf != closest_value !!!")
             video_command.run_ffmpeg_command(closest_value[0])
 
-        return closest_value
+        heuristic_throughout = heuristic.throughout_video(
+            full_input_filename_part,
+            full_output_filename,
+            "ffmpeg",
+            input_file_script_seeking,
+            source_start_end_frame=(frame_start, frame_end),
+            subsample=1,
+        )
+
+        return *closest_value, heuristic_throughout
 
 
 compressing_video(
+    # "input_mov.mp4",
     "input.mp4",
     "temp.mkv",
     ffmpeg.H264(tune="animation", preset="veryfast"),
     # ffmpeg.SVTAV1(),
-    ffmpeg_heuristics.VMAF(70),
+    ffmpeg_heuristics.VMAF(80),
     # scene_detection_threshold=40,
-    minimum_scene_length_seconds=0,
-    multithreading_threads=4,
+    minimum_scene_length_seconds=0.4,
+    multithreading_threads=1,
 )
