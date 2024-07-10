@@ -44,7 +44,7 @@ def split_usual_method(
         # ffmpeg.SVTAV1(),
         ffmpeg.H264(preset="fast"),
         0,
-        ffmpeg.get_video_metadata("ffprobe", INPUT_FILE).total_frames,
+        ffmpeg.get_video_metadata(INPUT_FILE).total_frames,
         OUTPUT_FILE_NAME,
         "ffmpeg",
         None,
@@ -94,7 +94,7 @@ def draw_vmaf_graph(
         # encode_start_end_frame=(10, 100),
         source_start_end_frame=(
             0,
-            ffmpeg.get_video_metadata("ffprobe", input_file).total_frames,
+            ffmpeg.get_video_metadata(input_file).total_frames,
         ),
     )
 
@@ -107,7 +107,7 @@ def draw_vmaf_graph(
         # encode_start_end_frame=(10, 100),
         source_start_end_frame=(
             0,
-            ffmpeg.get_video_metadata("ffprobe", input_file).total_frames,
+            ffmpeg.get_video_metadata(input_file).total_frames,
         ),
     )
 
@@ -162,5 +162,5 @@ for file in OUTPUT_FILE_NAMES:
     os.remove(file)
 # os.remove(OUTPUT_FILE_NAME)
 
-print(ffmpeg.get_video_metadata("ffprobe", INPUT_FILE))
-print(ffmpeg.get_video_metadata("ffprobe", OUTPUT_FILE_NAME))
+print(ffmpeg.get_video_metadata(INPUT_FILE))
+print(ffmpeg.get_video_metadata(OUTPUT_FILE_NAME))

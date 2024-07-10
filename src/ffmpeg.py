@@ -307,7 +307,7 @@ class VideoMetadata:
 
 
 def get_video_metadata(
-    ffprobe_path: str, filename: str, print_raw: bool = False
+    filename: str, print_raw: bool = False, ffprobe_path: str = "ffprobe"
 ) -> VideoMetadata:
     # another command: % ffprobe -i small-trim.mp4 -print_format json -loglevel fatal -show_streams -count_frames
     data = subprocess.run(
@@ -542,17 +542,17 @@ def visual_comparison_of_video_with_blend_filter(
         print("ERROR FAILED TO OUTPUT VISUAL COMPARISON (with blend filter)")
 
 
-# Is this necessary? --> Now legacy
-def get_frame_rate(filename: str) -> float:
-    data = subprocess.run(
-        f"ffprobe -i {filename} -print_format json -loglevel fatal -show_streams -count_frames -select_streams v | grep r_frame_rate",
-        shell=True,
-        check=True,
-        capture_output=True,
-    ).stdout.decode()
-    return float(
-        eval(data.strip().split(":")[1].replace(",", "").replace('"', "").strip())
-    )
+# # Is this necessary? --> Now legacy
+# def get_frame_rate(filename: str) -> float:
+#     data = subprocess.run(
+#         f"ffprobe -i {filename} -print_format json -loglevel fatal -show_streams -count_frames -select_streams v | grep r_frame_rate",
+#         shell=True,
+#         check=True,
+#         capture_output=True,
+#     ).stdout.decode()
+#     return float(
+#         eval(data.strip().split(":")[1].replace(",", "").replace('"', "").strip())
+#     )
 
 
 # ffmpeg -i video1.mkv -i video2.mkv -filter_complex "[0:V:0]crop=960:1080:0:0[v1];[1:V:0]crop=960:1080:960:0[v2];[v1][v2]hstack=2[out]" -map "[out]" output.mkv
