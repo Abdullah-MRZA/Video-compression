@@ -40,30 +40,38 @@ class VMAF:
         ffmpeg_path: str,
         accurate_seek_ffms2: ffmpeg.ffms2seek,
         # input_file_script_seeking: str,
-        source_start_end_frame: None | tuple[int, int] = None,
+        source_start_end_frame: None | tuple[int, int | None] = None,
         # encode_start_end_frame: None | tuple[int, int] = None,
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
     ) -> float:
         print("Running FFMPEG COMMAND for vmaf")
-        # frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
+
+        frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
         # ffmpeg_command = [ffmpeg_path]
 
         ffmpeg_command: list[str] = []
 
         if source_start_end_frame is not None:
+            total_frames = ffmpeg.get_video_metadata(
+                "ffprobe", source_video_path
+            ).total_frames
+
+            if source_start_end_frame[1] == total_frames:
+                source_start_end_frame = (source_start_end_frame[0], None)
+
             ffmpeg_command.append(accurate_seek_ffms2.command(*source_start_end_frame))
             source_video_path = "-"
 
         ffmpeg_command.append(ffmpeg_path)
 
-        # ffmpeg_command.extend(["-r", str(frame_rate)])  # important to include
+        ffmpeg_command.extend(["-r", str(frame_rate)])  # (was) important to include
         # if encode_start_end_frame is not None:
         #     ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
         #     ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
         ffmpeg_command.extend(["-i", encoded_video_path])
 
-        # ffmpeg_command.extend(["-r", str(frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])
         # if source_start_end_frame is not None:
         #     ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
         #     ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
@@ -115,30 +123,37 @@ class VMAF:
         encoded_video_path: str,  # | None,
         ffmpeg_path: str,
         accurate_seek_ffms2: ffmpeg.ffms2seek,
-        source_start_end_frame: None | tuple[int, int] = None,
+        source_start_end_frame: None | tuple[int, int | None] = None,
         # encode_start_end_frame: None | tuple[int, int] = None,
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
     ) -> list[float]:
         print("Running FFMPEG-throughout COMMAND for vmaf")
         # ffmpeg_command: list[str] = [ffmpeg_path]
-        # frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
+        frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
 
         ffmpeg_command: list[str] = []
 
         if source_start_end_frame is not None:
+            total_frames = ffmpeg.get_video_metadata(
+                "ffprobe", source_video_path
+            ).total_frames
+
+            if source_start_end_frame[1] == total_frames:
+                source_start_end_frame = (source_start_end_frame[0], None)
+
             ffmpeg_command.append(accurate_seek_ffms2.command(*source_start_end_frame))
             source_video_path = "-"
 
         ffmpeg_command.append(ffmpeg_path)
 
-        # ffmpeg_command.extend(["-r", str(frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])
         # if encode_start_end_frame is not None:
         #     ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
         #     ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
         ffmpeg_command.extend(["-i", encoded_video_path])
 
-        # ffmpeg_command.extend(["-r", str(frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])
         # if source_start_end_frame is not None:
         #     ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
         #     ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])

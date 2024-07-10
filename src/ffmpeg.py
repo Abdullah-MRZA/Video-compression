@@ -5,7 +5,7 @@ from types import TracebackType
 from typing import Literal
 import json
 import os
-from rich import print
+# from rich import print
 
 from rich.traceback import install
 
@@ -150,13 +150,19 @@ class ffms2seek:
             )
         # _ = input("NOTE MADE FILE")
 
-    def command(self, start_frame: int, end_frame: int) -> str:
-        return f"vspipe -s {start_frame} -e {end_frame - 1} -c y4m {self.filename_of_vpy} - |"
+    def command(self, start_frame: int | None, end_frame: int | None) -> str:
+        start = (
+            f"-s {start_frame}"
+            if (start_frame is not None and start_frame != 0)
+            else ""
+        )
+        end = f"-e {end_frame - 1}" if end_frame is not None else ""
+        return f"vspipe {start} {end} -c y4m {self.filename_of_vpy} - |"
 
     def __exit__(self):
         try:
             os.remove(self.filename_of_vpy)
-        except Exception as e:
+        except Exception as _:
             print(f"WARNING: Unable to delete file: {self.filename_of_vpy}")
 
 
@@ -187,7 +193,7 @@ class FfmpegCommand:
         #     0  # TO PREVENT OVERLAP BETWEEN FRAMES --> prevent duplication
         # )
 
-        # framerate: float = get_frame_rate(self.input_filename)
+        framerate: float = get_frame_rate(self.input_filename)
         # start_time_seconds = self.start_frame / framerate
         # end_time_seconds = self.end_frame / framerate
         command: list[str] = [  # ADD -r COMMANDD!!
@@ -197,7 +203,7 @@ class FfmpegCommand:
             self.ffmpeg_path,
             "-hide_banner -loglevel error",
             # "-accurate_seek",
-            # f"-r {framerate}",
+            f"-r {framerate}",
             # f"-ss {start_time_seconds}",  # NOTE: IS THIS OKAY??? (SEEMS SO??) + IS FASTER?
             # f"-to {end_time_seconds}",
             # f'-i "{self.input_filename}"',
@@ -502,10 +508,8 @@ def visual_comparison_of_video_with_blend_filter(
     -c:v libx264 -crf 18 -c:a copy output.mkv
     """
     print("RUNNING visual_comparison_of_video_with_blend_filter")
-    ffmpeg_command: list[str] = []
+    ffmpeg_command: list[str] = [f"{ffmpeg_path} -hide_banner -loglevel error "]
     # frame_rate = get_frame_rate(source_video_path)
-
-    ffmpeg_command.append(f"{ffmpeg_path} -hide_banner -loglevel error ")
 
     # if encode_start_end_frame is not None:
     #     ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
@@ -517,13 +521,18 @@ def visual_comparison_of_video_with_blend_filter(
     #     ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
     ffmpeg_command.extend(["-i", source_video_path])
 
+    # ffmpeg_command.append('-filter_complex "blend=all_mode=difference"')
     ffmpeg_command.append(
-        f' -filter_complex "blend=all_mode=difference" -c:v libx264 -y -crf {quality_crf_h264} -an "{output_filename_with_extension}"'
+        "-filter_complex '[0:v]setpts=PTS-STARTPTS[first];[1:v]setpts=PTS-STARTPTS[second];[first][second]blend=all_mode=difference'"  # [out]
     )
 
+    ffmpeg_command.append(
+        f'-c:v libx264 -y -crf {quality_crf_h264} -an "{output_filename_with_extension}"'
+    )
     try:
         # + '-filter_complex "[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]blend=all_mode=difference" -c:v libx264 -y -crf 18 ' # this is actually harmful?? because the "start_time" in ffprobe don't line up, and this also causes them to not line up
         # f"{ffmpeg_path} -i {encoded_video_path} -i {source_video_path} -hide_banner -loglevel error "
+        print(" ".join(ffmpeg_command))
         _ = subprocess.run(
             " ".join(ffmpeg_command),
             shell=True,

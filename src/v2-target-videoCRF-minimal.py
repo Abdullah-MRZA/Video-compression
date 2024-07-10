@@ -51,6 +51,7 @@ def compressing_video(
         )
         return (
             section,
+            # video_section.start_frame,
             video_section.start_frame,
             optimal_crf,
             heuristic_reached,
@@ -184,7 +185,7 @@ def _compress_video_section(
         full_output_filename,
         "ffmpeg",
         None,
-        "yuv420p",
+        "yuv420p10le",
         300,
         input_file_script_seeking,
     ) as video_command:
@@ -216,6 +217,7 @@ def _compress_video_section(
             # all_heuristic_crf_values.update({40: current_heuristic})
 
             if round(current_heuristic) == heuristic.target_score:
+                print(f"Exact match (of {heuristic.NAME} heuristic)")
                 break
             elif current_heuristic > heuristic.target_score:
                 bottom_crf_value = current_crf
@@ -245,7 +247,7 @@ def _compress_video_section(
 
 compressing_video(
     # "input_mov.mp4",
-    "input.mp4",
+    "input-tiny.mp4",
     "temp.mkv",
     ffmpeg.H264(tune="animation", preset="veryfast"),
     # ffmpeg.SVTAV1(),
