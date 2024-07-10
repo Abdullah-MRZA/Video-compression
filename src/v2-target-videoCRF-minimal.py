@@ -247,12 +247,13 @@ def _compress_video_section(
 
 compressing_video(
     # "input_mov.mp4",
-    "input-tiny.mp4",
+    # "input-tiny.mp4",
+    "big.mp4",
     "temp.mkv",
-    ffmpeg.H264(tune="animation", preset="veryfast"),
-    # ffmpeg.SVTAV1(),
-    ffmpeg_heuristics.VMAF(80),
+    # ffmpeg.H264(tune="animation", preset="veryfast"),
+    ffmpeg.SVTAV1(preset=6),
+    ffmpeg_heuristics.VMAF(94),
     # scene_detection_threshold=40,
-    minimum_scene_length_seconds=0.4,
-    multithreading_threads=1,
+    minimum_scene_length_seconds=0,
+    multithreading_threads=2,
 )
