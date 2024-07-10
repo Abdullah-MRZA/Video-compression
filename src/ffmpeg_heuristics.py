@@ -47,15 +47,14 @@ class VMAF:
     ) -> float:
         print("Running FFMPEG COMMAND for vmaf")
 
-        frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
+        # frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
+        frame_rate = ffmpeg.get_video_metadata(encoded_video_path).frame_rate
         # ffmpeg_command = [ffmpeg_path]
 
         ffmpeg_command: list[str] = []
 
         if source_start_end_frame is not None:
-            total_frames = ffmpeg.get_video_metadata(
-                "ffprobe", source_video_path
-            ).total_frames
+            total_frames = ffmpeg.get_video_metadata(source_video_path).total_frames
 
             if source_start_end_frame[1] == total_frames:
                 source_start_end_frame = (source_start_end_frame[0], None)
@@ -130,14 +129,12 @@ class VMAF:
     ) -> list[float]:
         print("Running FFMPEG-throughout COMMAND for vmaf")
         # ffmpeg_command: list[str] = [ffmpeg_path]
-        frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
+        frame_rate = ffmpeg.get_video_metadata(encoded_video_path).frame_rate
 
         ffmpeg_command: list[str] = []
 
         if source_start_end_frame is not None:
-            total_frames = ffmpeg.get_video_metadata(
-                "ffprobe", source_video_path
-            ).total_frames
+            total_frames = ffmpeg.get_video_metadata(source_video_path).total_frames
 
             if source_start_end_frame[1] == total_frames:
                 source_start_end_frame = (source_start_end_frame[0], None)

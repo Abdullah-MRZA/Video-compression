@@ -41,6 +41,7 @@ class SVTAV1:
 
     # const data
     ACCEPTED_CRF_RANGE: range = range(0, 63 + 1, 1)
+    NAME = "SVTAV1"
 
     def to_subprocess_command(self) -> list[str]:
         # return [f"-crf {}", f"-preset {preset}"] + [f"-svtav1-params film-grain={film-grain[0]}"]
@@ -61,6 +62,7 @@ class SVTAV1:
 @dataclass()
 class H264:
     ACCEPTED_CRF_RANGE: range = range(0, 51 + 1, 1)
+    NAME = "H264"
 
     preset: Literal[
         "ultrafast",
@@ -104,6 +106,8 @@ class H264:
 @dataclass()
 class H265:
     ACCEPTED_CRF_RANGE: range = range(0, 51 + 1, 1)
+    NAME = "H265"
+
     preset: Literal[
         "ultrafast",
         "superfast",
@@ -193,7 +197,8 @@ class FfmpegCommand:
         #     0  # TO PREVENT OVERLAP BETWEEN FRAMES --> prevent duplication
         # )
 
-        framerate: float = get_frame_rate(self.input_filename)
+        # framerate: float = get_frame_rate(self.input_filename)
+        framerate: float = get_video_metadata(self.input_filename).frame_rate
         # start_time_seconds = self.start_frame / framerate
         # end_time_seconds = self.end_frame / framerate
         command: list[str] = [  # ADD -r COMMANDD!!

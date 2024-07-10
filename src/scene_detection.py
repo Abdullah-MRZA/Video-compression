@@ -31,7 +31,7 @@ def find_scenes(
 
     _ = scene_manager.detect_scenes(video)
 
-    video_data = ffmpeg.get_video_metadata("ffprobe", video_path)
+    video_data = ffmpeg.get_video_metadata(video_path)
 
     scene_data = [
         SceneData(

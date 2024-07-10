@@ -348,9 +348,7 @@ def _compress_video_part(
                 ),
                 encode_start_end_frame=(
                     0,
-                    ffmpeg.get_video_metadata(
-                        "ffprobe", tempoary_video_file_name
-                    ).total_frames,
+                    ffmpeg.get_video_metadata(tempoary_video_file_name).total_frames,
                 ),
                 ffmpeg_path=ffmpeg_path,
             )

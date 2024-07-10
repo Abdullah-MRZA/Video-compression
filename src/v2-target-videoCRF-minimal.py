@@ -6,7 +6,8 @@ import graph_generate
 from rich.progress import Progress, TimeElapsedColumn
 from rich import print
 import concurrent.futures
-# import os
+import os
+import time
 
 progress = Progress(
     *Progress.get_default_columns(),
@@ -77,7 +78,7 @@ def compressing_video(
     with graph_generate.LinegraphImage(
         "video_graph",
         "png",
-        f"CRF & {heuristic.NAME} - {full_input_filename} to {full_output_filename}",
+        f"CRF & {heuristic.NAME} - {full_input_filename} to {full_output_filename} ({codec.NAME})",
         "frames",
     ) as graph_instance:
         graph_instance.add_linegraph(
@@ -114,16 +115,14 @@ def compressing_video(
     for x in range(len(video_scenes)):
         print(_temporary_file_names(x))
         print(ffmpeg.get_video_metadata(_temporary_file_names(x), False))
-
-    # for x in range(len(video_scenes)):
-    #     os.remove(_temporary_file_names(x))
+        os.remove(_temporary_file_names(x))
 
     if ffmpeg.get_video_metadata(full_input_filename).contains_audio:
         ...
 
-    # ffmpeg.visual_comparison_of_video_with_blend_filter(
-    #     full_input_filename, full_output_filename, "ffmpeg", "visual_comparison.mp4"
-    # )
+    ffmpeg.visual_comparison_of_video_with_blend_filter(
+        full_input_filename, full_output_filename, "ffmpeg", "visual_comparison.mp4"
+    )
 
     print(ffmpeg.get_video_metadata(full_input_filename, False))
     print(ffmpeg.get_video_metadata(full_output_filename, False))
@@ -163,6 +162,9 @@ def _compress_video_section(
         while (
             current_crf := (top_crf_value + bottom_crf_value) // 2
         ) not in all_heuristic_crf_values.keys():
+            while os.path.isfile("STOP.txt"):  # Will pause execution
+                time.sleep(1)
+
             video_command.run_ffmpeg_command(current_crf)
 
             current_heuristic = heuristic.summary_of_overall_video(
@@ -211,10 +213,10 @@ compressing_video(
     # "input-tiny.mp4",
     # "big.mp4",
     "temp.mkv",
-    # ffmpeg.H264(tune="animation", preset="veryfast"),
-    ffmpeg.SVTAV1(preset=6),
+    ffmpeg.H264(tune="animation", preset="veryfast"),
+    # ffmpeg.SVTAV1(preset=6),
     ffmpeg_heuristics.VMAF(94),
     # scene_detection_threshold=40,
     minimum_scene_length_seconds=0.1,
-    multithreading_threads=2,
+    multithreading_threads=5,
 )
