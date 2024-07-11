@@ -10,7 +10,7 @@ import concurrent.futures
 import os
 import time
 
-from hashlib import sha256
+# from hashlib import sha256
 from rich.console import Console
 import pickle
 # from multiprocessing import Pool
@@ -156,6 +156,9 @@ def compressing_video(
         print(ffmpeg.get_video_metadata(_temporary_file_names(x), False))
         os.remove(_temporary_file_names(x))
 
+    for tempfile in [x for x in os.listdir() if x.endswith(".tempfile")]:
+        os.remove(tempfile)
+
     # ffmpeg.get_video_metadata(full_input_filename).contains_audio and audio_commands is not None --> handled by function
     with rich_console.status("Combining audio+subtitles from source video"):
         ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
@@ -207,40 +210,51 @@ def _compress_video_section(
 
         all_heuristic_crf_values: dict[int, float] = {}
 
-        while (
-            current_crf := (top_crf_value + bottom_crf_value) // 2
-        ) not in all_heuristic_crf_values.keys():
-            while os.path.isfile("STOP.txt"):  # Will pause execution
-                time.sleep(1)
+        current_crf = None
+        if not os.path.exists(
+            f"{full_input_filename_part}-{frame_start}-{frame_end}-{codec}.tempfile"
+        ):
+            while (
+                current_crf := (top_crf_value + bottom_crf_value) // 2
+            ) not in all_heuristic_crf_values.keys():
+                while os.path.isfile("STOP.txt"):  # Will pause execution
+                    time.sleep(1)
 
-            video_command.run_ffmpeg_command(current_crf)
+                video_command.run_ffmpeg_command(current_crf)
 
-            current_heuristic = heuristic.summary_of_overall_video(
-                full_input_filename_part,
-                full_output_filename,
-                "ffmpeg",
-                input_file_script_seeking,
-                source_start_end_frame=(frame_start, frame_end),
-            )
+                current_heuristic = heuristic.summary_of_overall_video(
+                    full_input_filename_part,
+                    full_output_filename,
+                    "ffmpeg",
+                    input_file_script_seeking,
+                    source_start_end_frame=(frame_start, frame_end),
+                )
 
-            print(current_heuristic)
+                print(current_heuristic)
 
-            all_heuristic_crf_values.update({current_crf: current_heuristic})
+                all_heuristic_crf_values.update({current_crf: current_heuristic})
 
-            if round(current_heuristic) == heuristic.target_score:
-                print(f"Exact match (of {heuristic.NAME} heuristic)")
-                break
-            elif current_heuristic > heuristic.target_score:
-                bottom_crf_value = current_crf
-            elif current_heuristic < heuristic.target_score:
-                top_crf_value = current_crf
+                if round(current_heuristic) == heuristic.target_score:
+                    print(f"Exact match (of {heuristic.NAME} heuristic)")
+                    break
+                elif current_heuristic > heuristic.target_score:
+                    bottom_crf_value = current_crf
+                elif current_heuristic < heuristic.target_score:
+                    top_crf_value = current_crf
+        else:
+            print("Using data from crash temp file")
+            with open(
+                f"{full_input_filename_part}-{frame_start}-{frame_end}-{codec}.tempfile",
+                "rb",
+            ) as file:
+                all_heuristic_crf_values = pickle.load(file)
 
         closest_value = min(
             (abs(x[1] - heuristic.target_score), x)
             for x in all_heuristic_crf_values.items()
         )[1]
 
-        if current_crf != closest_value[0]:
+        if current_crf is not None and current_crf != closest_value[0]:
             print("DIFFERENCE -> current_crf != closest_value !!!")
             video_command.run_ffmpeg_command(closest_value[0])
 
@@ -252,6 +266,14 @@ def _compress_video_section(
             source_start_end_frame=(frame_start, frame_end),
             subsample=1,
         )
+
+        with open(
+            f"{full_input_filename_part}-{frame_start}-{frame_end}-{codec}.tempfile",
+            "wb",
+        ) as file:
+            pickle.dump(all_heuristic_crf_values, file)
+
+        print("done writing the backup data")
 
         return *closest_value, heuristic_throughout
 
