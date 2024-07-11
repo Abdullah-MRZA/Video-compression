@@ -1,17 +1,19 @@
+from typing import Literal
 import ffmpeg
 import ffmpeg_heuristics
-import scene_detection
 import graph_generate
+import scene_detection
 
-from rich.progress import Progress, TimeElapsedColumn
 from rich import print
+from rich.progress import Progress, TimeElapsedColumn
 import concurrent.futures
 import os
 import time
 
-import pickle
 from hashlib import sha256
 from rich.console import Console
+import pickle
+# from multiprocessing import Pool
 
 progress = Progress(
     *Progress.get_default_columns(),
@@ -31,6 +33,9 @@ def compressing_video(
     audio_commands: None | str = "-c:a copy",  # TODO: Remove None option
     subtitle_commands: None | str = "-c:s copy",
     multithreading_threads: int = 2,
+    scenes_length_sort: Literal[
+        "chronological", "largest first", "smallest first"
+    ] = "chronological",
     # crop_black_bars: bool = True,
 ) -> None:
     assert os.path.isfile(
@@ -42,6 +47,20 @@ def compressing_video(
             full_input_filename, minimum_scene_length_seconds
         )
         print(video_scenes)
+        match scenes_length_sort:
+            case "smallest first":
+                video_scenes = sorted(
+                    video_scenes,
+                    key=lambda x: x.end_frame - x.start_frame,
+                )
+            case "largest first":
+                video_scenes = sorted(
+                    video_scenes,
+                    key=lambda x: x.end_frame - x.start_frame,
+                    reverse=True,
+                )
+            case "chronological":
+                pass
 
     input_filename_data = ffmpeg.get_video_metadata(full_input_filename)
 
@@ -250,4 +269,5 @@ if __name__ == "__main__":
         minimum_scene_length_seconds=0.2,
         audio_commands="-c:a copy",
         multithreading_threads=4,
+        scenes_length_sort="smallest first",
     )
