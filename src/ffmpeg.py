@@ -547,6 +547,18 @@ def visual_comparison_of_video_with_blend_filter(
         print("ERROR FAILED TO OUTPUT VISUAL COMPARISON (with blend filter)")
 
 
+def combine_audio_and_subtitle_streams_from_another_video(
+    input_file_name_with_extension: str,
+    output_file_name_with_extension: str,
+    audio_commands: str | None = None,
+    subtitle_commands: str | None = None,
+) -> None:
+    """
+    Allows you to combine non-video streams from an input video (ie subtitles or audio) in a safe way
+    """
+    ...
+
+
 # # Is this necessary? --> Now legacy
 # def get_frame_rate(filename: str) -> float:
 #     data = subprocess.run(

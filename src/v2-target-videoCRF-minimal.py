@@ -22,12 +22,12 @@ def compressing_video(
     heuristic: ffmpeg_heuristics.heuristic,
     # scene_detection_threshold: int = 27,
     minimum_scene_length_seconds: float,
+    audio_commands: None | str,  # | Literal["-c:a copy"], <- this doesn't give hints
     multithreading_threads: int = 2,
 ) -> None:
     video_scenes = scene_detection.find_scenes(
         full_input_filename, minimum_scene_length_seconds
     )
-
     print(video_scenes)
 
     input_filename_data = ffmpeg.get_video_metadata(full_input_filename)
@@ -117,8 +117,10 @@ def compressing_video(
         print(ffmpeg.get_video_metadata(_temporary_file_names(x), False))
         os.remove(_temporary_file_names(x))
 
-    if ffmpeg.get_video_metadata(full_input_filename).contains_audio:
-        ...
+    # ffmpeg.get_video_metadata(full_input_filename).contains_audio and audio_commands is not None --> handled by function
+    ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
+        full_output_filename, full_output_filename, audio_commands, None
+    )
 
     ffmpeg.visual_comparison_of_video_with_blend_filter(
         full_input_filename, full_output_filename, "ffmpeg", "visual_comparison.mp4"
@@ -208,15 +210,17 @@ def _compress_video_section(
         return *closest_value, heuristic_throughout
 
 
-compressing_video(
-    "input_mov.mp4",
-    # "input-tiny.mp4",
-    # "big.mp4",
-    "temp.mkv",
-    ffmpeg.H264(tune="animation", preset="veryfast"),
-    # ffmpeg.SVTAV1(preset=6),
-    ffmpeg_heuristics.VMAF(94),
-    # scene_detection_threshold=40,
-    minimum_scene_length_seconds=0.1,
-    multithreading_threads=5,
-)
+if __name__ == "__main__":
+    compressing_video(
+        "input_mov.mp4",
+        # "input-tiny.mp4",
+        # "big.mp4",
+        "temp.mkv",
+        ffmpeg.H264(tune="animation", preset="veryfast"),
+        # ffmpeg.SVTAV1(preset=6),
+        ffmpeg_heuristics.VMAF(94),
+        # scene_detection_threshold=40,
+        minimum_scene_length_seconds=0.1,
+        audio_commands="-c:a copy",
+        multithreading_threads=4,
+    )
