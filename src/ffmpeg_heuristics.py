@@ -125,11 +125,14 @@ class VMAF:
         source_start_end_frame: None | tuple[int, int | None] = None,
         # encode_start_end_frame: None | tuple[int, int] = None,
         threads_to_use: int = 6,
-        subsample: int = 2,  # Calculate per X frames
+        subsample: int = 1,  # Calculate per X frames
     ) -> list[float]:
         print("Running FFMPEG-throughout COMMAND for vmaf")
         # ffmpeg_command: list[str] = [ffmpeg_path]
         frame_rate = ffmpeg.get_video_metadata(encoded_video_path).frame_rate
+        LOG_FILE_NAME = f"log-{source_start_end_frame}.json".replace(" ", "").replace(
+            ",", ""
+        )
 
         ffmpeg_command: list[str] = []
 
@@ -161,7 +164,7 @@ class VMAF:
                 "-hide_banner -loglevel error",
                 "-an",  # Remove audio
                 "-lavfi",
-                f'"[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path=log.json"',
+                f'"[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path={LOG_FILE_NAME}"',
                 # f'"libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path=log.json"',
                 "-f",
                 "null",
@@ -179,7 +182,7 @@ class VMAF:
             print("Process failed because did not return a successful return code.")
             raise e
 
-        with open("log.json", "r") as file:
+        with open(LOG_FILE_NAME, "r") as file:
             json_of_file: dict[str, list[dict[str, dict[str, int]]]] = json.loads(
                 file.read()
             )
@@ -192,7 +195,7 @@ class VMAF:
 
         # print(f"{vmaf_data=}")
         try:
-            os.remove("log.json")
+            os.remove(LOG_FILE_NAME)
         except FileNotFoundError:
             print("FileNotFoundError for removing log.json")
 

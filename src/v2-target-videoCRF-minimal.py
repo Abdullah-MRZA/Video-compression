@@ -22,9 +22,15 @@ def compressing_video(
     heuristic: ffmpeg_heuristics.heuristic,
     # scene_detection_threshold: int = 27,
     minimum_scene_length_seconds: float,
-    audio_commands: None | str,  # | Literal["-c:a copy"], <- this doesn't give hints
+    audio_commands: None | str = "-c:a copy",  # TODO: Remove None option
+    subtitle_commands: None | str = "-c:s copy",
     multithreading_threads: int = 2,
+    # crop_black_bars: bool = True,
 ) -> None:
+    assert os.path.isfile(
+        full_input_filename
+    ), f"CRITICAL ERROR: {full_input_filename} Does Not Exist!!"
+
     video_scenes = scene_detection.find_scenes(
         full_input_filename, minimum_scene_length_seconds
     )
@@ -119,7 +125,7 @@ def compressing_video(
 
     # ffmpeg.get_video_metadata(full_input_filename).contains_audio and audio_commands is not None --> handled by function
     ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
-        full_output_filename, full_output_filename, audio_commands, None
+        full_input_filename, full_output_filename, audio_commands, subtitle_commands
     )
 
     ffmpeg.visual_comparison_of_video_with_blend_filter(
@@ -145,16 +151,15 @@ def _compress_video_section(
     input_file_script_seeking: ffmpeg.ffms2seek,
 ) -> tuple[int, float, list[float]]:  # CRF + heuristic (throughout)
     with ffmpeg.FfmpegCommand(
-        full_input_filename_part,
-        codec,
-        frame_start,
-        frame_end,
-        full_output_filename,
-        "ffmpeg",
-        None,
-        "yuv420p10le",
-        300,
-        input_file_script_seeking,
+        input_filename=full_input_filename_part,
+        codec_information=codec,
+        start_frame=frame_start,
+        end_frame=frame_end,
+        output_filename=full_output_filename,
+        ffmpeg_path="ffmpeg",
+        crop_black_bars_size=None,
+        keyframe_placement=300,
+        input_file_script_seeking=input_file_script_seeking,
     ) as video_command:
         bottom_crf_value = min(codec.ACCEPTED_CRF_RANGE)
         top_crf_value = max(codec.ACCEPTED_CRF_RANGE)
@@ -212,15 +217,15 @@ def _compress_video_section(
 
 if __name__ == "__main__":
     compressing_video(
-        "input_mov.mp4",
-        # "input-tiny.mp4",
+        # "input_mov.mp4",
+        "input-tiny.mp4",
         # "big.mp4",
-        "temp.mkv",
+        "output-temp.mkv",
         ffmpeg.H264(tune="animation", preset="veryfast"),
         # ffmpeg.SVTAV1(preset=6),
         ffmpeg_heuristics.VMAF(94),
         # scene_detection_threshold=40,
-        minimum_scene_length_seconds=0.1,
+        minimum_scene_length_seconds=0.2,
         audio_commands="-c:a copy",
         multithreading_threads=4,
     )

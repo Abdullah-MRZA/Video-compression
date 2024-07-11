@@ -14,7 +14,7 @@ _ = install(show_locals=True)
 
 type video = SVTAV1 | H265 | H264
 # TODO add VP9 support when I feel like it
-type bitdepth = Literal["yuv420p10le", "yuv420p"]
+# type bitdepth = Literal["yuv420p10le", "yuv420p"]
 
 
 # @dataclass()
@@ -38,6 +38,7 @@ class SVTAV1:
 
     # -svtav1-params film-grain=X, film-grain-denoise=0
     film_grain: None | Filmgrain = None
+    bitdepth: Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
 
     # const data
     ACCEPTED_CRF_RANGE: range = range(0, 63 + 1, 1)
@@ -48,6 +49,7 @@ class SVTAV1:
         command = [
             "-c:v libsvtav1",
             f"-preset {self.preset}",
+            f"-pix_fmt {self.bitdepth}",
         ]  # , f"-crf {self.crf_value}"]
 
         if self.film_grain is not None:
@@ -87,11 +89,13 @@ class H264:
         "ssim",
     ] = None
     faststart: bool = False  # does this get translated to final file?
+    bitdepth: Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
 
     def to_subprocess_command(self) -> list[str]:
         command = [
             "-c:v libx264",
             f"-preset {self.preset}",
+            f"-pix_fmt {self.bitdepth}",
         ]
 
         if self.tune is not None:
@@ -120,10 +124,13 @@ class H265:
         "veryslow",
     ] = "slower"
 
+    bitdepth: Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
+
     def to_subprocess_command(self) -> list[str]:
         command = [
             "-c:v libx265",
             f"-preset {self.preset}",
+            f"-pix_fmt {self.bitdepth}",
         ]
 
         return command
@@ -182,7 +189,7 @@ class FfmpegCommand:
     ffmpeg_path: str
 
     crop_black_bars_size: str | None
-    bit_depth: bitdepth
+    # bit_depth: bitdepth
     keyframe_placement: int | None
 
     input_file_script_seeking: ffms2seek | None
@@ -220,7 +227,7 @@ class FfmpegCommand:
             # f"-vf trim={self.start_time_seconds}:{self.end_time_seconds},setpts=PTS-STARTPTS",  # is this faster + as accurate?
             *self.codec_information.to_subprocess_command(),
             "-an",
-            f"-pix_fmt {self.bit_depth}",
+            # f"-pix_fmt {self.bit_depth}",
             "-y",
             f"-crf {crf_value}",
             # f'"intermediate-{self.output_filename}"',
@@ -556,7 +563,27 @@ def combine_audio_and_subtitle_streams_from_another_video(
     """
     Allows you to combine non-video streams from an input video (ie subtitles or audio) in a safe way
     """
-    ...
+    intermediate_file = "TEMP-INTERMEDIATE.mkv"
+    try:
+        commands: list[str] = []
+        if audio_commands is not None:
+            commands.append(audio_commands)
+        if subtitle_commands is not None:
+            commands.append(subtitle_commands)
+
+        _ = subprocess.run(
+            f"ffmpeg -i {input_file_name_with_extension} -i {output_file_name_with_extension} -map 1:v -map 0:a? -map 0:s? -c:v copy {' '.join(commands)} {intermediate_file}",
+            shell=True,
+            check=True,
+        )
+
+        os.remove(output_file_name_with_extension)
+        os.rename(intermediate_file, output_file_name_with_extension)
+        os.remove(intermediate_file)
+    except Exception:
+        print(
+            "ERROR IN combine_audio_and_subtitle_streams_from_another_video() function"
+        )
 
 
 # # Is this necessary? --> Now legacy
