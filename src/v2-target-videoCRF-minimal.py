@@ -9,10 +9,16 @@ import concurrent.futures
 import os
 import time
 
+import pickle
+from hashlib import sha256
+from rich.console import Console
+
 progress = Progress(
     *Progress.get_default_columns(),
     TimeElapsedColumn(),
 )
+
+rich_console = Console()
 
 
 def compressing_video(
@@ -31,10 +37,11 @@ def compressing_video(
         full_input_filename
     ), f"CRITICAL ERROR: {full_input_filename} Does Not Exist!!"
 
-    video_scenes = scene_detection.find_scenes(
-        full_input_filename, minimum_scene_length_seconds
-    )
-    print(video_scenes)
+    with rich_console.status("Calculating scenes"):
+        video_scenes = scene_detection.find_scenes(
+            full_input_filename, minimum_scene_length_seconds
+        )
+        print(video_scenes)
 
     input_filename_data = ffmpeg.get_video_metadata(full_input_filename)
 
@@ -66,57 +73,64 @@ def compressing_video(
         tuple[scene_detection.SceneData, int, float, list[float]]
     ] = []
 
-    with concurrent.futures.ThreadPoolExecutor(multithreading_threads) as executor:
-        results = list(
-            executor.map(
-                compress_video_section_call, range(len(video_scenes)), video_scenes
+    with rich_console.status("Rendering..."):
+        with concurrent.futures.ThreadPoolExecutor(multithreading_threads) as executor:
+            results = list(
+                executor.map(
+                    compress_video_section_call, range(len(video_scenes)), video_scenes
+                )
             )
-        )
-        results = sorted(results)
-        optimal_crf_list = [x[1:] for x in results]
+            results = sorted(results)
+            optimal_crf_list = [x[1:] for x in results]
 
-    ffmpeg.concatenate_video_files(
-        [_temporary_file_names(x) for x in range(len(video_scenes))],
-        full_output_filename,
-        "ffmpeg",
-    )
+    with rich_console.status("Concatenating intermediate files"):
+        ffmpeg.concatenate_video_files(
+            [_temporary_file_names(x) for x in range(len(video_scenes))],
+            full_output_filename,
+            "ffmpeg",
+        )
 
-    with graph_generate.LinegraphImage(
-        "video_graph",
-        "png",
-        f"CRF & {heuristic.NAME} - {full_input_filename} to {full_output_filename} ({codec.NAME})",
-        "frames",
-    ) as graph_instance:
-        graph_instance.add_linegraph(
-            # x_data=[x[0].start_frame for x in optimal_crf_list],
-            x_data=[
-                y for x in optimal_crf_list for y in (x[0].start_frame, x[0].end_frame)
-            ],
-            y_data=[y[1] for x in optimal_crf_list for y in (x, x)],
-            name="CRF",
-            mode="lines+markers",
-            on_left_right_side="left",
-            y_axis_range=codec.ACCEPTED_CRF_RANGE,
-        )
-        graph_instance.add_linegraph(
-            x_data=list(range(len([y for x in optimal_crf_list for y in x[3]]))),
-            y_data=[y for x in optimal_crf_list for y in x[3]],
-            name=f"found {heuristic.NAME}",
-            mode="lines",
-            on_left_right_side="right",
-            y_axis_range=heuristic.RANGE,
-        )
-        graph_instance.add_linegraph(
-            # x_data=[x[0].start_frame for x in optimal_crf_list],
-            x_data=[
-                y for x in optimal_crf_list for y in (x[0].start_frame, x[0].end_frame)
-            ],
-            y_data=[y[2] for x in optimal_crf_list for y in (x, x)],
-            name=heuristic.NAME,
-            mode="lines+markers",
-            on_left_right_side="right",
-            y_axis_range=heuristic.RANGE,
-        )
+    with rich_console.status("Generating graph of data"):
+        with graph_generate.LinegraphImage(
+            "video_graph",
+            "png",
+            f"CRF & {heuristic.NAME} - {full_input_filename} to {full_output_filename} ({codec.NAME})",
+            "frames",
+        ) as graph_instance:
+            graph_instance.add_linegraph(
+                # x_data=[x[0].start_frame for x in optimal_crf_list],
+                x_data=[
+                    y
+                    for x in optimal_crf_list
+                    for y in (x[0].start_frame, x[0].end_frame)
+                ],
+                y_data=[y[1] for x in optimal_crf_list for y in (x, x)],
+                name="CRF",
+                mode="lines+markers",
+                on_left_right_side="left",
+                y_axis_range=codec.ACCEPTED_CRF_RANGE,
+            )
+            graph_instance.add_linegraph(
+                x_data=list(range(len([y for x in optimal_crf_list for y in x[3]]))),
+                y_data=[y for x in optimal_crf_list for y in x[3]],
+                name=f"found {heuristic.NAME}",
+                mode="lines",
+                on_left_right_side="right",
+                y_axis_range=heuristic.RANGE,
+            )
+            graph_instance.add_linegraph(
+                # x_data=[x[0].start_frame for x in optimal_crf_list],
+                x_data=[
+                    y
+                    for x in optimal_crf_list
+                    for y in (x[0].start_frame, x[0].end_frame)
+                ],
+                y_data=[y[2] for x in optimal_crf_list for y in (x, x)],
+                name=heuristic.NAME,
+                mode="lines+markers",
+                on_left_right_side="right",
+                y_axis_range=heuristic.RANGE,
+            )
 
     for x in range(len(video_scenes)):
         print(_temporary_file_names(x))
@@ -124,20 +138,28 @@ def compressing_video(
         os.remove(_temporary_file_names(x))
 
     # ffmpeg.get_video_metadata(full_input_filename).contains_audio and audio_commands is not None --> handled by function
-    ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
-        full_input_filename, full_output_filename, audio_commands, subtitle_commands
-    )
+    with rich_console.status("Combining audio+subtitles from source video"):
+        ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
+            full_input_filename, full_output_filename, audio_commands, subtitle_commands
+        )
 
-    ffmpeg.visual_comparison_of_video_with_blend_filter(
-        full_input_filename, full_output_filename, "ffmpeg", "visual_comparison.mp4"
-    )
+    with rich_console.status("Making a visual comparison with blend filter"):
+        ffmpeg.visual_comparison_of_video_with_blend_filter(
+            full_input_filename, full_output_filename, "ffmpeg", "visual_comparison.mp4"
+        )
 
     print(ffmpeg.get_video_metadata(full_input_filename, False))
     print(ffmpeg.get_video_metadata(full_output_filename, False))
 
 
-def _temporary_file_names(position: int) -> str:
-    return f"TEMP-{position}.mkv"
+# def _temporary_file_names(position: int, iscomplete: bool = True) -> str:
+#     return f"TEMP-{position}{'' if iscomplete else '-notcomplete'}.mkv"
+# def _temporary_file_names(position: int) -> str:
+#     return f"temp-{position}.mkv"
+
+
+def _temporary_file_names(position: int, extension: str = "mkv") -> str:
+    return f"temp-{position}.{extension}"
 
 
 def _compress_video_section(
