@@ -297,7 +297,7 @@ if __name__ == "__main__":
         # ffmpeg.SVTAV1(preset=6),
         ffmpeg_heuristics.VMAF(90),
         # scene_detection_threshold=40,
-        minimum_scene_length_seconds=0,
+        minimum_scene_length_seconds=0,  # BUG: This doesn't work properly!!
         audio_commands="-c:a copy",
         multithreading_threads=4,
         scenes_length_sort="smallest first",
