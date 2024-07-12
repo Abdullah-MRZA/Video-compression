@@ -38,9 +38,9 @@ def find_scenes(
     scene_manager = sd.SceneManager()
     # scene_manager.add_detector(sd.ContentDetector(threshold=threshold))
 
-    # scene_manager.add_detector(sd.ContentDetector())
+    scene_manager.add_detector(sd.ContentDetector())
     # scene_manager.add_detector(sd.AdaptiveDetector())
-    scene_manager.add_detector(sd.HashDetector())
+    # scene_manager.add_detector(sd.HashDetector())
 
     _ = scene_manager.detect_scenes(video)
 

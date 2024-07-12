@@ -8,6 +8,7 @@ import os
 # from rich import print
 
 from rich.traceback import install
+from functools import cache
 
 _ = install(show_locals=True)
 
@@ -318,12 +319,15 @@ class VideoMetadata:
     # is_HDR: bool
 
 
+@cache
 def get_video_metadata(
-    filename: str, print_raw: bool = False, ffprobe_path: str = "ffprobe"
+    filename: str,
+    # ffprobe_path: str = "ffprobe",  # , print_raw: bool = False
 ) -> VideoMetadata:
     # another command: % ffprobe -i small-trim.mp4 -print_format json -loglevel fatal -show_streams -count_frames
     data = subprocess.run(
-        f'{ffprobe_path} -v quiet -print_format json -show_format -show_streams -count_frames "{filename}"',
+        # f'{ffprobe_path} -v quiet -print_format json -show_format -show_streams -count_frames "{filename}"',
+        f'ffprobe -v quiet -print_format json -show_format -show_streams -count_frames "{filename}"',
         check=True,
         shell=True,
         capture_output=True,
@@ -331,8 +335,8 @@ def get_video_metadata(
 
     json_data = json.loads(data)
 
-    if print_raw:
-        print(json_data)
+    # if print_raw:
+    #     print(json_data)
 
     return VideoMetadata(
         file_name=json_data["format"]["filename"],  # same as `filename`...
