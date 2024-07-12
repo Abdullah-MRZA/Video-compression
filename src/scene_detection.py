@@ -28,11 +28,11 @@ def find_scenes(
         sha_value = sha256(data).hexdigest()
         cache_file = f"{video_path}-{sha_value}.pickle"
 
-    # if os.path.exists(cache_file):
-    #     print("Recieving from file")
-    #     with open(cache_file, "rb") as f:
-    #         scene_data_from_file: list[SceneData] = pickle.load(f)
-    #         return scene_data_from_file
+    if os.path.exists(cache_file):
+        print("Recieving from file")
+        with open(cache_file, "rb") as f:
+            scene_data_from_file: list[SceneData] = pickle.load(f)
+            return scene_data_from_file
 
     video = sd.open_video(video_path)
     scene_manager = sd.SceneManager()
