@@ -28,11 +28,11 @@ def find_scenes(
         sha_value = sha256(data).hexdigest()
         cache_file = f"{video_path}-{sha_value}.pickle"
 
-    if os.path.exists(cache_file):
-        print("Recieving from file")
-        with open(cache_file, "rb") as f:
-            scene_data_from_file: list[SceneData] = pickle.load(f)
-            return scene_data_from_file
+    # if os.path.exists(cache_file):
+    #     print("Recieving from file")
+    #     with open(cache_file, "rb") as f:
+    #         scene_data_from_file: list[SceneData] = pickle.load(f)
+    #         return scene_data_from_file
 
     video = sd.open_video(video_path)
     scene_manager = sd.SceneManager()
@@ -54,13 +54,24 @@ def find_scenes(
         for x in scene_manager.get_scene_list()
     ]
 
+    def scene_len_seconds(scene: SceneData, fps: int) -> float:
+        return (scene.end_frame - scene.start_frame) / fps
+
     while True:
-        for i, scene in enumerate(scene_data[:-1]):
+        # WARNING: this will skip first and last chunk from checks
+        for i, scene in enumerate(scene_data[1:-1]):
             if (
-                (scene.end_frame - scene.start_frame) / video_data.total_frames
-            ) < minimum_length_scene_seconds:
-                scene_data[i].end_frame = scene_data[i + 1].end_frame
-                del scene_data[i + 1]
+                scene_len_seconds(scene, video_data.total_frames)
+                < minimum_length_scene_seconds
+            ):
+                if scene_len_seconds(
+                    scene_data[i - 1], video_data.total_frames
+                ) > scene_len_seconds(scene_data[i + 1], video_data.total_frames):
+                    scene_data[i].end_frame = scene_data[i + 1].end_frame
+                    del scene_data[i + 1]
+                else:
+                    scene_data[i].start_frame = scene_data[i - 1].start_frame
+                    del scene_data[i - 1]
                 break
         else:
             break

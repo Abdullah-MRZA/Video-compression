@@ -153,7 +153,7 @@ def compressing_video(
 
     for x in range(len(video_scenes)):
         print(_temporary_file_names(x))
-        print(ffmpeg.get_video_metadata(_temporary_file_names(x), False))
+        print(ffmpeg.get_video_metadata(_temporary_file_names(x)))
         os.remove(_temporary_file_names(x))
 
     for tempfile in [x for x in os.listdir() if x.endswith(".tempfile")]:
@@ -170,8 +170,8 @@ def compressing_video(
             full_input_filename, full_output_filename, "ffmpeg", "visual_comparison.mp4"
         )
 
-    print(ffmpeg.get_video_metadata(full_input_filename, False))
-    print(ffmpeg.get_video_metadata(full_output_filename, False))
+    print(ffmpeg.get_video_metadata(full_input_filename))
+    print(ffmpeg.get_video_metadata(full_output_filename))
 
 
 # def _temporary_file_names(position: int, iscomplete: bool = True) -> str:

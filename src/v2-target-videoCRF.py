@@ -37,30 +37,33 @@ def compressing_video(
         "chronological", "largest first", "smallest first"
     ] = "chronological",
     # crop_black_bars: bool = True,
+    make_comparison_with_blend_filter: bool = True,
 ) -> None:
     assert os.path.isfile(
         full_input_filename
     ), f"CRITICAL ERROR: {full_input_filename} Does Not Exist!!"
 
     with rich_console.status("Calculating scenes"):
-        video_scenes = scene_detection.find_scenes(
+        raw_video_scenes = scene_detection.find_scenes(
             full_input_filename, minimum_scene_length_seconds
         )
-        print(video_scenes)
+        print(raw_video_scenes)
         match scenes_length_sort:
             case "smallest first":
                 video_scenes = sorted(
-                    video_scenes,
+                    raw_video_scenes,
                     key=lambda x: x.end_frame - x.start_frame,
                 )
+                print(f"sorted scenes: {video_scenes}")
             case "largest first":
                 video_scenes = sorted(
-                    video_scenes,
+                    raw_video_scenes,
                     key=lambda x: x.end_frame - x.start_frame,
                     reverse=True,
                 )
+                print(f"sorted scenes: {video_scenes}")
             case "chronological":
-                pass
+                video_scenes = raw_video_scenes
 
     input_filename_data = ffmpeg.get_video_metadata(full_input_filename)
 
@@ -72,7 +75,7 @@ def compressing_video(
         optimal_crf, heuristic_reached, heuristic_throughout = _compress_video_section(
             full_input_filename,
             input_filename_data,
-            _temporary_file_names(section),
+            _temporary_video_file_names(section),
             codec,
             heuristic,
             video_section.start_frame,
@@ -96,7 +99,10 @@ def compressing_video(
         with concurrent.futures.ThreadPoolExecutor(multithreading_threads) as executor:
             results = list(
                 executor.map(
-                    compress_video_section_call, range(len(video_scenes)), video_scenes
+                    # compress_video_section_call, range(len(video_scenes)), video_scenes
+                    compress_video_section_call,
+                    [raw_video_scenes.index(x) for x in video_scenes],
+                    video_scenes,
                 )
             )
             results = sorted(results)
@@ -104,7 +110,7 @@ def compressing_video(
 
     with rich_console.status("Concatenating intermediate files"):
         ffmpeg.concatenate_video_files(
-            [_temporary_file_names(x) for x in range(len(video_scenes))],
+            [_temporary_video_file_names(x) for x in range(len(video_scenes))],
             full_output_filename,
             "ffmpeg",
         )
@@ -152,9 +158,9 @@ def compressing_video(
             )
 
     for x in range(len(video_scenes)):
-        print(_temporary_file_names(x))
-        print(ffmpeg.get_video_metadata(_temporary_file_names(x)))
-        os.remove(_temporary_file_names(x))
+        print(_temporary_video_file_names(x))
+        print(ffmpeg.get_video_metadata(_temporary_video_file_names(x)))
+        os.remove(_temporary_video_file_names(x))
 
     for tempfile in [x for x in os.listdir() if x.endswith(".tempfile")]:
         os.remove(tempfile)
@@ -165,23 +171,21 @@ def compressing_video(
             full_input_filename, full_output_filename, audio_commands, subtitle_commands
         )
 
-    with rich_console.status("Making a visual comparison with blend filter"):
-        ffmpeg.visual_comparison_of_video_with_blend_filter(
-            full_input_filename, full_output_filename, "ffmpeg", "visual_comparison.mp4"
-        )
+    if make_comparison_with_blend_filter:
+        with rich_console.status("Making a visual comparison with blend filter"):
+            ffmpeg.visual_comparison_of_video_with_blend_filter(
+                full_input_filename,
+                full_output_filename,
+                "ffmpeg",
+                "visual_comparison.mp4",
+            )
 
-    print(ffmpeg.get_video_metadata(full_input_filename, False))
-    print(ffmpeg.get_video_metadata(full_output_filename, False))
-
-
-# def _temporary_file_names(position: int, iscomplete: bool = True) -> str:
-#     return f"TEMP-{position}{'' if iscomplete else '-notcomplete'}.mkv"
-# def _temporary_file_names(position: int) -> str:
-#     return f"temp-{position}.mkv"
+    print(ffmpeg.get_video_metadata(full_input_filename))
+    print(ffmpeg.get_video_metadata(full_output_filename))
 
 
-def _temporary_file_names(position: int, extension: str = "mkv") -> str:
-    return f"temp-{position}.{extension}"
+def _temporary_video_file_names(position: int, extension: str = "mkv") -> str:
+    return f"temp-{position}.mkv"
 
 
 def _compress_video_section(
@@ -286,10 +290,11 @@ if __name__ == "__main__":
         "output-temp.mkv",
         ffmpeg.H264(tune="animation", preset="veryfast"),
         # ffmpeg.SVTAV1(preset=6),
-        ffmpeg_heuristics.VMAF(94),
+        ffmpeg_heuristics.VMAF(90),
         # scene_detection_threshold=40,
-        minimum_scene_length_seconds=0.2,
+        minimum_scene_length_seconds=0.1,
         audio_commands="-c:a copy",
         multithreading_threads=4,
         scenes_length_sort="smallest first",
+        make_comparison_with_blend_filter=False,
     )
