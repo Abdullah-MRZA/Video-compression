@@ -4,8 +4,9 @@ A test for compressing videos extremely efficiently.
 
 
 > [!CAUTION]
-> NOTE: this is still a **work in progress!!!**
-> There is still a lot of work left to do, for a fully functional build
+> NOTE: this is still a **work in progress!!!**: 
+> There is still a lot of work left to do, for a fully functional build.
+> At the moment, only MacOS and linux is supported, but support for windows is coming soon
 
 ## Planned Features
 
@@ -13,6 +14,7 @@ A test for compressing videos extremely efficiently.
 - [x] Video splitting based on scene changes
 - [x] Automatic cropping of black bars (**needs testing**)
 - [x] Local multithreading of rendering (for concurrent encodes)
+- [x] Recovery from crashes
 
 If there is a *feature* you would like to implement, or have any other way you could help, get in touch!
 
