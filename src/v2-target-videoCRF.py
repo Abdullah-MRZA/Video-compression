@@ -43,6 +43,9 @@ def compressing_video(
         full_input_filename
     ), f"CRITICAL ERROR: {full_input_filename} Does Not Exist!!"
 
+    with rich_console.status(f"Getting metadata of input file ({full_input_filename})"):
+        input_filename_data = ffmpeg.get_video_metadata(full_input_filename)
+
     with rich_console.status("Calculating scenes"):
         raw_video_scenes = scene_detection.find_scenes(
             full_input_filename, minimum_scene_length_seconds
@@ -64,8 +67,9 @@ def compressing_video(
                 print(f"sorted scenes: {video_scenes}")
             case "chronological":
                 video_scenes = raw_video_scenes
-
-    input_filename_data = ffmpeg.get_video_metadata(full_input_filename)
+        print(
+            f"scene durations (seconds): {[round(scene_detection.scene_len_seconds(x, input_filename_data.frame_rate), 2) for x in video_scenes]}"
+        )
 
     seeking_data_input_file = ffmpeg.ffms2seek(full_input_filename, full_input_filename)
 
@@ -285,14 +289,15 @@ def _compress_video_section(
 if __name__ == "__main__":
     compressing_video(
         # "input_mov.mp4",
-        "input-tiny.mp4",
+        # "input-tiny.mp4",
+        "whole.mp4",
         # "big.mp4",
         "output-temp.mkv",
         ffmpeg.H264(tune="animation", preset="veryfast"),
         # ffmpeg.SVTAV1(preset=6),
         ffmpeg_heuristics.VMAF(90),
         # scene_detection_threshold=40,
-        minimum_scene_length_seconds=0.1,
+        minimum_scene_length_seconds=0,
         audio_commands="-c:a copy",
         multithreading_threads=4,
         scenes_length_sort="smallest first",

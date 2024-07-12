@@ -324,6 +324,7 @@ def get_video_metadata(
     filename: str,
     # ffprobe_path: str = "ffprobe",  # , print_raw: bool = False
 ) -> VideoMetadata:
+    print(f"Getting metadata of {filename}")
     # another command: % ffprobe -i small-trim.mp4 -print_format json -loglevel fatal -show_streams -count_frames
     data = subprocess.run(
         # f'{ffprobe_path} -v quiet -print_format json -show_format -show_streams -count_frames "{filename}"',
