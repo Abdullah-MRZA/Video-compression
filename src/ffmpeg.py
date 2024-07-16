@@ -9,7 +9,9 @@ import os
 
 from rich.traceback import install
 from functools import cache
+
 from hashlib import sha256
+import pickle
 
 _ = install(show_locals=True)
 
@@ -326,11 +328,46 @@ def get_video_metadata(
     write_to_cache: bool = True,
     # ffprobe_path: str = "ffprobe",  # , print_raw: bool = False
 ) -> VideoMetadata:
-    # BUG: Complete this
-    # with open(filename, "rb") as f:
-    #     data = f.read() + str.encode(str(minimum_length_scene_seconds))
-    #     sha_value = sha256(data).hexdigest()
-    #     cache_file = f"{video_path}-{sha_value}-video_metadata.pickle"
+    def make_video_metadata(json_data: dict) -> VideoMetadata:
+        # BUG: first (0) stream may not be video...
+        return VideoMetadata(
+            file_name=json_data["format"]["filename"],  # same as `filename`...
+            width=int(json_data["streams"][0]["width"]),
+            height=int(json_data["streams"][0]["height"]),
+            # frame rate info
+            frame_rate=float(
+                eval(json_data["streams"][0]["r_frame_rate"])
+            ),  # FRACTION OR DECIMAL --> WARNING: may be unsafe
+            total_frames=int(json_data["streams"][0]["nb_read_frames"]),
+            # pixel info
+            pix_fmt=json_data["streams"][0]["pix_fmt"],
+            codec=json_data["streams"][0]["codec_name"],
+            # timings
+            start_time=float(json_data["format"]["start_time"]),
+            duration=float(json_data["format"]["duration"]),
+            # other data
+            contains_audio=any(
+                True for x in json_data["streams"] if x["codec_type"] == "audio"
+            ),
+            file_size=int(json_data["format"]["size"]),
+            bitrate=int(json_data["format"]["bit_rate"]),
+            # is_HDR=(json_data["streams"][0]["color_space"] == "bt2020nc") # https://video.stackexchange.com/questions/22059/how-to-identify-hdr-video
+            # and (json_data["streams"][0]["color_transfer"] == "smpte2084")
+            # and (json_data["streams"][0]["color_primaries"] == "bt2020"),
+        )
+
+    # ffprobe -v quiet -print_format json -show_format -show_streams short.mp4
+    with open(filename, "rb") as f:
+        data = f.read()
+        sha_value = sha256(data).hexdigest()
+        cache_file = f"{filename}-{sha_value}-video_metadata.pickle"
+
+    if os.path.exists(cache_file):
+        print("Recieving from file")
+        with open(cache_file, "rb") as f:
+            data_from_cache: dict = pickle.load(f)
+            print("Recieved video metadata from pickle cache file")
+            return make_video_metadata(data_from_cache)
 
     print(f"Getting metadata of {filename}")
     # another command: % ffprobe -i small-trim.mp4 -print_format json -loglevel fatal -show_streams -count_frames
@@ -342,38 +379,15 @@ def get_video_metadata(
         capture_output=True,
     ).stdout.decode()
 
-    json_data = json.loads(data)
+    json_data: dict = json.loads(data)
+
+    with open(cache_file, "wb") as f:
+        pickle.dump(json_data, f)
+
+    return make_video_metadata(json_data)
 
     # if print_raw:
     #     print(json_data)
-
-    return VideoMetadata(
-        file_name=json_data["format"]["filename"],  # same as `filename`...
-        width=int(json_data["streams"][0]["width"]),
-        height=int(json_data["streams"][0]["height"]),
-        # frame rate info
-        frame_rate=float(
-            eval(json_data["streams"][0]["r_frame_rate"])
-        ),  # FRACTION OR DECIMAL --> WARNING: may be unsafe
-        total_frames=int(json_data["streams"][0]["nb_read_frames"]),
-        # pixel info
-        pix_fmt=json_data["streams"][0]["pix_fmt"],
-        codec=json_data["streams"][0]["codec_name"],
-        # timings
-        start_time=float(json_data["format"]["start_time"]),
-        duration=float(json_data["format"]["duration"]),
-        # other data
-        contains_audio=any(
-            True for x in json_data["streams"] if x["codec_type"] == "audio"
-        ),
-        file_size=int(json_data["format"]["size"]),
-        bitrate=int(json_data["format"]["bit_rate"]),
-        # is_HDR=(json_data["streams"][0]["color_space"] == "bt2020nc") # https://video.stackexchange.com/questions/22059/how-to-identify-hdr-video
-        # and (json_data["streams"][0]["color_transfer"] == "smpte2084")
-        # and (json_data["streams"][0]["color_primaries"] == "bt2020"),
-    )
-
-    # ffprobe -v quiet -print_format json -show_format -show_streams short.mp4
 
 
 # {
