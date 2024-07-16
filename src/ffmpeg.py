@@ -1,4 +1,5 @@
 import subprocess
+import file_cache
 from textwrap import dedent
 from dataclasses import dataclass
 from types import TracebackType
@@ -322,7 +323,8 @@ class VideoMetadata:
     # is_HDR: bool
 
 
-@cache
+# @cache
+@file_cache.file_cache
 def get_video_metadata(
     filename: str,
     write_to_cache: bool = True,

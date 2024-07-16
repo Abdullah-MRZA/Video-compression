@@ -258,6 +258,7 @@ def _compress_video_section(
                     "ffmpeg",
                     input_file_script_seeking,
                     source_start_end_frame=(frame_start, frame_end),
+                    subsample=3,
                 )
 
                 print(current_heuristic)
