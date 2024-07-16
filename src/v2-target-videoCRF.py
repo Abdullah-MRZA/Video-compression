@@ -75,6 +75,9 @@ def compressing_video(
     def compress_video_section_call(
         section: int, video_section: scene_detection.SceneData
     ) -> tuple[int, scene_detection.SceneData, int, float, list[float]]:
+        import time
+
+        time.sleep(1)
         optimal_crf, heuristic_reached, heuristic_throughout = _compress_video_section(
             full_input_filename,
             input_filename_data,
@@ -111,15 +114,17 @@ def compressing_video(
 
         # with progress:
         # with Progress() as progress:
+        results = list(  # track(
+            executor.submit(
+                compress_video_section_call,
+                raw_video_scenes.index(scene),
+                scene,
+            )
+            for scene in video_scenes
+        )
+
         results = track(
-            (
-                executor.submit(
-                    compress_video_section_call,
-                    raw_video_scenes.index(scene),
-                    scene,
-                ).result()
-                for scene in video_scenes
-            ),
+            (x.result() for x in results),
             total=len(video_scenes),
             description="Rendering video",
             update_period=1,
@@ -314,7 +319,7 @@ if __name__ == "__main__":
         # scene_detection_threshold=40,
         minimum_scene_length_seconds=4,
         audio_commands="-c:a copy",
-        multithreading_threads=4,
+        multithreading_threads=2,
         scenes_length_sort="smallest first",
         make_comparison_with_blend_filter=False,
     )

@@ -63,7 +63,7 @@ def find_scenes(
         data = f.read() + str.encode(str(minimum_length_scene_seconds))
         sha_value = sha256(data).hexdigest()
         # cache_file = f"{video_path}-{sha_value}-{minimum_length_scene_seconds}.pickle"
-        cache_file = f"{video_path}-{sha_value}.pickle"
+        cache_file = f"{video_path}-{sha_value}-all_scenes.pickle"
 
     if os.path.exists(cache_file):
         print("Recieving from file")

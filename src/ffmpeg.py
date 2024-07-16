@@ -9,6 +9,7 @@ import os
 
 from rich.traceback import install
 from functools import cache
+from hashlib import sha256
 
 _ = install(show_locals=True)
 
@@ -322,8 +323,15 @@ class VideoMetadata:
 @cache
 def get_video_metadata(
     filename: str,
+    write_to_cache: bool = True,
     # ffprobe_path: str = "ffprobe",  # , print_raw: bool = False
 ) -> VideoMetadata:
+    # BUG: Complete this
+    # with open(filename, "rb") as f:
+    #     data = f.read() + str.encode(str(minimum_length_scene_seconds))
+    #     sha_value = sha256(data).hexdigest()
+    #     cache_file = f"{video_path}-{sha_value}-video_metadata.pickle"
+
     print(f"Getting metadata of {filename}")
     # another command: % ffprobe -i small-trim.mp4 -print_format json -loglevel fatal -show_streams -count_frames
     data = subprocess.run(
