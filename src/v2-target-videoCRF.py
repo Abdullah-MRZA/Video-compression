@@ -75,9 +75,6 @@ def compressing_video(
     def compress_video_section_call(
         section: int, video_section: scene_detection.SceneData
     ) -> tuple[int, scene_detection.SceneData, int, float, list[float]]:
-        import time
-
-        time.sleep(1)
         optimal_crf, heuristic_reached, heuristic_throughout = _compress_video_section(
             full_input_filename,
             input_filename_data,
@@ -247,7 +244,9 @@ def _compress_video_section(
             while (
                 current_crf := (top_crf_value + bottom_crf_value) // 2
             ) not in all_heuristic_crf_values.keys():
-                while os.path.isfile("STOP.txt"):  # Will pause execution
+                # Will pause execution
+                # In case of needing to pause
+                while os.path.isfile("STOP.txt"):
                     time.sleep(1)
 
                 video_command.run_ffmpeg_command(current_crf)
@@ -313,12 +312,10 @@ if __name__ == "__main__":
     start_time = time.perf_counter()
     compressing_video(
         "input.mp4",
-        # "big.mp4",
         "output-temp.mkv",
-        ffmpeg.H264(tune="animation", preset="veryfast"),
+        ffmpeg.H264(tune="animation", preset="medium"),
         # ffmpeg.SVTAV1(preset=6),
         ffmpeg_heuristics.VMAF(90),
-        # scene_detection_threshold=40,
         minimum_scene_length_seconds=4,
         audio_commands="-c:a copy",
         multithreading_threads=2,

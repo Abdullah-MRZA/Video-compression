@@ -9,7 +9,7 @@ import os
 # from rich import print
 
 from rich.traceback import install
-from functools import cache
+# from functools import cache
 
 from hashlib import sha256
 import pickle
@@ -324,7 +324,7 @@ class VideoMetadata:
 
 
 # @cache
-@file_cache.file_cache
+@file_cache.cache()
 def get_video_metadata(
     filename: str,
     write_to_cache: bool = True,

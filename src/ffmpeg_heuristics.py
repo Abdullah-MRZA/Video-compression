@@ -34,7 +34,7 @@ class VMAF:
     NAME: str = "VMAF"
     RANGE: range = range(0, 100 + 1)
 
-    @file_cache.file_cache
+    @file_cache.cache()
     def summary_of_overall_video(
         self,
         source_video_path: str,
@@ -118,7 +118,7 @@ class VMAF:
             [x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]
         )
 
-    @file_cache.file_cache
+    @file_cache.cache()
     def throughout_video(
         self,
         source_video_path: str,
@@ -262,7 +262,7 @@ def crop_black_bars(source_video_path: str, ffmpeg_path: str) -> str:
 
 class FfprobeInformation:
     @staticmethod
-    @file_cache.file_cache
+    @file_cache.cache()
     def check_contains_any_audio(
         input_filename_with_extension: str, ffprobe_path: str
     ) -> bool:
