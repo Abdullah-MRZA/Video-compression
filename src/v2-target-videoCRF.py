@@ -114,7 +114,7 @@ def compressing_video(
 
         # with progress:
         # with Progress() as progress:
-        results = list(  # track(
+        results_future = list(  # track(
             executor.submit(
                 compress_video_section_call,
                 raw_video_scenes.index(scene),
@@ -124,7 +124,7 @@ def compressing_video(
         )
 
         results = track(
-            (x.result() for x in results),
+            (x.result() for x in results_future),
             total=len(video_scenes),
             description="Rendering video",
             update_period=1,
@@ -309,6 +309,7 @@ def _compress_video_section(
 
 
 if __name__ == "__main__":
+    start_time = time.perf_counter()
     compressing_video(
         "input.mp4",
         # "big.mp4",
@@ -323,3 +324,5 @@ if __name__ == "__main__":
         scenes_length_sort="smallest first",
         make_comparison_with_blend_filter=False,
     )
+    end_time = time.perf_counter()
+    print(f"Total time elapsed: {end_time - start_time}")
