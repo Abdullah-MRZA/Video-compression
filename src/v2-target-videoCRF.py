@@ -5,7 +5,7 @@ import graph_generate
 import scene_detection
 
 from rich import print
-from rich.progress import Progress, TimeElapsedColumn
+from rich.progress import Progress, TimeElapsedColumn, track
 import concurrent.futures
 import os
 import time
@@ -15,12 +15,11 @@ from rich.console import Console
 import pickle
 # from multiprocessing import Pool
 
+rich_console = Console()
 progress = Progress(
     *Progress.get_default_columns(),
     TimeElapsedColumn(),
 )
-
-rich_console = Console()
 
 
 def compressing_video(
@@ -99,18 +98,35 @@ def compressing_video(
         tuple[scene_detection.SceneData, int, float, list[float]]
     ] = []
 
-    with rich_console.status("Rendering..."):
-        with concurrent.futures.ThreadPoolExecutor(multithreading_threads) as executor:
-            results = list(
-                executor.map(
-                    # compress_video_section_call, range(len(video_scenes)), video_scenes
+    # with rich_console.status("Rendering..."):
+    with concurrent.futures.ThreadPoolExecutor(multithreading_threads) as executor:
+        # results = list(
+        #     executor.map(
+        #         # compress_video_section_call, range(len(video_scenes)), video_scenes
+        #         compress_video_section_call,
+        #         [raw_video_scenes.index(x) for x in video_scenes],
+        #         video_scenes,
+        #     )
+        # )
+
+        # with progress:
+        # with Progress() as progress:
+        results = track(
+            (
+                executor.submit(
                     compress_video_section_call,
-                    [raw_video_scenes.index(x) for x in video_scenes],
-                    video_scenes,
-                )
-            )
-            results = sorted(results)
-            optimal_crf_list = [x[1:] for x in results]
+                    raw_video_scenes.index(scene),
+                    scene,
+                ).result()
+                for scene in video_scenes
+            ),
+            total=len(video_scenes),
+            description="Rendering video",
+            update_period=1,
+        )
+
+        results = sorted(results)
+        optimal_crf_list = [x[1:] for x in results]
 
     with rich_console.status("Concatenating intermediate files"):
         ffmpeg.concatenate_video_files(
@@ -188,7 +204,8 @@ def compressing_video(
     print(ffmpeg.get_video_metadata(full_output_filename))
 
 
-def _temporary_video_file_names(position: int, extension: str = "mkv") -> str:
+def _temporary_video_file_names(position: int) -> str:
+    # , extension: str = "mkv"
     return f"temp-{position}.mkv"
 
 
@@ -288,16 +305,14 @@ def _compress_video_section(
 
 if __name__ == "__main__":
     compressing_video(
-        # "input_mov.mp4",
-        # "input-tiny.mp4",
-        "whole.mp4",
+        "input.mp4",
         # "big.mp4",
         "output-temp.mkv",
         ffmpeg.H264(tune="animation", preset="veryfast"),
         # ffmpeg.SVTAV1(preset=6),
         ffmpeg_heuristics.VMAF(90),
         # scene_detection_threshold=40,
-        minimum_scene_length_seconds=0,  # BUG: This doesn't work properly!!
+        minimum_scene_length_seconds=4,
         audio_commands="-c:a copy",
         multithreading_threads=4,
         scenes_length_sort="smallest first",
