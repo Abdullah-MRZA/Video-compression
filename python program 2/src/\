@@ -50,7 +50,6 @@ def cache(
     def file_cache_decorator(annotated_function: TCallable) -> TCallable:
         @functools.wraps(annotated_function)
         def wrapper(*args, **kwargs):
-            global cache_data
             function_signature_unique = calculate_sha(
                 inspect.getsource(annotated_function)
                 + "".join(str(x) for x in args)
@@ -69,22 +68,18 @@ def cache(
                 return matching_data[0].cache_data
 
             if os.path.exists(cache_filename):
-                with cache_filename.open("rb") as f:
+                with open(cache_filename, "rb") as f:
                     return pickle.load(f)
 
             recieved_value = annotated_function(*args, **kwargs)
 
+            # global cache_data
             cache_data.append(
                 data(cache_filename, recieved_value, not persistent_after_termination)
             )
 
-            with cache_filename.open("wb") as f:
-                pickle.dump(recieved_value, f)
-            # with open(str(cache_filename), "wb") as f:
-            #     pickle.dump(recieved_value, f)
-
-            print("written to cache")
-            os.system("tree")
+            with open(data.cache_filename, "wb") as f:
+                pickle.dump(data.cache_data, f)
 
             return recieved_value
 
@@ -94,7 +89,7 @@ def cache(
 
 
 def cache_cleanup():
-    print("cleaning up cache files at the end")
+    print("cleaning up at end")
     for file in (x for x in cache_data if x.delete_afterwards):
         try:
             os.remove(file.cache_filename)
@@ -102,7 +97,7 @@ def cache_cleanup():
             print(f"ERROR REMOVING CACHE FILE: {e}")
 
 
-# _ = atexit.register(cache_cleanup)
+_ = atexit.register(cache_cleanup())
 
 # import hashlib
 # import inspect
@@ -223,6 +218,5 @@ if __name__ == "__main__":
 
     print(get_result(1))
     print(get_result(2))
-    print(get_result(3))
 
     cache_cleanup()

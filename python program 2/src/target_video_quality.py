@@ -94,7 +94,7 @@ def compress_video(
 
     crop_black_bars_size: str | None = None  # default value
     if crop_black_bars:  # Assumption is that the black bars don't change in size
-        crop_black_bars_size = ffmpeg_heuristics.crop_black_bars(
+        crop_black_bars_size = ffmpeg_heuristics.crop_black_bars_size(
             input_filename_with_extension, ffmpeg_path
         )
 

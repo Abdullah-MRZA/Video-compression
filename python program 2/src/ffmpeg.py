@@ -282,7 +282,9 @@ def run_ffmpeg_command(
     )
 
     if crop_black_bars:
-        command.insert(-1, f"-vf {ffmpeg_heuristics.crop_black_bars(input_filename)}")
+        command.insert(
+            -1, f"-vf {ffmpeg_heuristics.crop_black_bars_size(input_filename)}"
+        )
 
     if keyframe_placement is not None:
         command.insert(-1, f"-g {keyframe_placement}")

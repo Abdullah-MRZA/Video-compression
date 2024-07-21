@@ -1,6 +1,7 @@
 from . import v2_target_videoCRF
 from . import ffmpeg
 from . import ffmpeg_heuristics
+from . import file_cache
 
 
 def main() -> None:
@@ -23,3 +24,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    file_cache.cache_cleanup()

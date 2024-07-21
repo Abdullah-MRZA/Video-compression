@@ -23,7 +23,7 @@ progress = Progress(
 
 @dataclass
 class videoData:
-    full_input_filename: str
+    full_input_filename: str  # could change to Path
     full_output_filename: str
     codec: ffmpeg.VideoCodec
     heuristic: ffmpeg_heuristics.heuristic

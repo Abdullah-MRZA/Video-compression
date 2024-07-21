@@ -33,37 +33,33 @@ class VMAF:
     target_score: int
     NAME: str = "VMAF"
     RANGE: range = range(0, 100 + 1)
+    IMPROVING_DIRECTION = +1
 
     @file_cache.cache()
     def summary_of_overall_video(
         self,
         source_video_path: str,
         encoded_video_path: str,  # | None
-        accurate_seek_ffms2: ffmpeg.ffms2seek,
-        # input_file_script_seeking: str,
-        source_start_end_frame: None | tuple[int, int | None] = None,
-        # encode_start_end_frame: None | tuple[int, int] = None,
+        accurate_seek: ffmpeg.accurate_seek,
+        source_start_end_frame: None | tuple[int, int] = None,
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
     ) -> float:
         print("Running FFMPEG COMMAND for vmaf")
-
-        # frame_rate = ffmpeg.get_frame_rate(encoded_video_path)
         frame_rate = ffmpeg.get_video_metadata(encoded_video_path).frame_rate
-        # ffmpeg_command = [ffmpeg_path]
 
         ffmpeg_command: list[str] = []
 
         if source_start_end_frame is not None:
-            total_frames = ffmpeg.get_video_metadata(source_video_path).total_frames
+            # total_frames = ffmpeg.get_video_metadata(source_video_path).total_frames
 
-            if source_start_end_frame[1] == total_frames:
-                source_start_end_frame = (source_start_end_frame[0], None)
+            # if source_start_end_frame[1] == total_frames:
+            #     source_start_end_frame = (source_start_end_frame[0], None)
 
-            ffmpeg_command.append(accurate_seek_ffms2.command(*source_start_end_frame))
+            ffmpeg_command.append(accurate_seek.command(*source_start_end_frame))
             source_video_path = "-"
 
-        ffmpeg_command.append(ffmpeg_path)
+        ffmpeg_command.append("ffmpeg")
 
         ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", encoded_video_path])
@@ -77,7 +73,7 @@ class VMAF:
         ffmpeg_command.extend(
             [
                 "-hide_banner",  #  -loglevel error --> need to read output!
-                "-an",  # Remove audio
+                "-an",
                 "-lavfi",
                 f'"[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}"',
                 # f'"libvmaf=n_threads={threads_to_use}:n_subsample={subsample}"',
@@ -89,12 +85,10 @@ class VMAF:
 
         print(f"FFMPEG COMMAND: {' '.join(ffmpeg_command)}")
         try:
-            # ffmpeg_output = subprocess.run(ffmpeg_command).stdout
             output_data = subprocess.run(
                 " ".join(ffmpeg_command), shell=True, check=True, capture_output=True
             )
             ffmpeg_output: str = output_data.stderr.decode()
-            # input(f"FFMPEG OUTPUT: {ffmpeg_output}")
         except FileNotFoundError as e:
             print("WARNING: FFMPEG NOT FOUND ON SYSTEM!!")
             raise e
@@ -102,11 +96,6 @@ class VMAF:
             print("Process failed because did not return a successful return code.")
             raise e
 
-        # This approach *could* be error prone to changes in FFMPEG?
-        # print(
-        #     # f"{[x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]=}"
-        #     f"FFMPEG OUTPUT: {ffmpeg_output}"
-        # )
         return float(
             [x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]
         )
@@ -116,8 +105,8 @@ class VMAF:
         self,
         source_video_path: str,
         encoded_video_path: str,  # | None,
-        accurate_seek_ffms2: ffmpeg.ffms2seek,
-        source_start_end_frame: None | tuple[int, int | None] = None,
+        accurate_seek: ffmpeg.accurate_seek,
+        source_start_end_frame: None | tuple[int, int] = None,
         # encode_start_end_frame: None | tuple[int, int] = None,
         threads_to_use: int = 6,
         subsample: int = 1,  # Calculate per X frames
@@ -132,26 +121,20 @@ class VMAF:
         ffmpeg_command: list[str] = []
 
         if source_start_end_frame is not None:
-            total_frames = ffmpeg.get_video_metadata(source_video_path).total_frames
+            # total_frames = ffmpeg.get_video_metadata(source_video_path).total_frames
+            #
+            # if source_start_end_frame[1] == total_frames:
+            #     source_start_end_frame = (source_start_end_frame[0], None)
 
-            if source_start_end_frame[1] == total_frames:
-                source_start_end_frame = (source_start_end_frame[0], None)
-
-            ffmpeg_command.append(accurate_seek_ffms2.command(*source_start_end_frame))
+            ffmpeg_command.append(accurate_seek.command(*source_start_end_frame))
             source_video_path = "-"
 
-        ffmpeg_command.append(ffmpeg_path)
+        ffmpeg_command.append("ffmpeg")
 
         ffmpeg_command.extend(["-r", str(frame_rate)])
-        # if encode_start_end_frame is not None:
-        #     ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
-        #     ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
         ffmpeg_command.extend(["-i", encoded_video_path])
 
         ffmpeg_command.extend(["-r", str(frame_rate)])
-        # if source_start_end_frame is not None:
-        #     ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
-        #     ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
         ffmpeg_command.extend(["-i", source_video_path])
 
         ffmpeg_command.extend(
@@ -181,7 +164,7 @@ class VMAF:
             json_of_file: dict[str, list[dict[str, dict[str, int]]]] = json.loads(
                 file.read()
             )
-            # This type-hint is not accurate --> but works for this
+            # This type-hint is not fully accurate --> but works for this
 
             vmaf_data: list[float] = []
 
@@ -242,7 +225,7 @@ class VMAF:
 #     ) -> int: ...
 
 
-def crop_black_bars(source_video_path: str) -> str:
+def crop_black_bars_size(source_video_path: str) -> str:
     ffmpeg_output = subprocess.getoutput(
         f'ffmpeg -i "{source_video_path}" -t 10 -vf cropdetect -f null -'
     )
@@ -250,53 +233,3 @@ def crop_black_bars(source_video_path: str) -> str:
 
     # get the last data point? (does the crop size ever change?) --> Need to test
     return data.rsplit(maxsplit=1)[-1]
-
-
-# class FfprobeInformation:
-#     @staticmethod
-#     @file_cache.cache()
-#     def check_contains_any_audio(
-#         input_filename_with_extension: str, ffprobe_path: str
-#     ) -> bool:
-#         """Determines if the input file contains audio (is this robust??)"""
-#         ffprobe_output = subprocess.getoutput(
-#             f"{ffprobe_path} {input_filename_with_extension}"
-#         )
-#         return any(
-#             True
-#             for x in ffprobe_output.splitlines()
-#             if x.strip().startswith("Stream") and "Audio" in x
-#         )
-
-
-# TESTS:
-# print(VMAF(target_score=90).overall("test.mp4", "lowquality.mp4"))
-
-# print(
-#     VMAF(target_score=90).overall_summary(
-#         source_video_path="short.mp4",
-#         encoded_video_path="short.mp4",
-#         source_start_end_time=("00:00:10.00", "00:00:20.00"),
-#         encode_start_end_time=("00:00:10.00", "00:00:20.00"),
-#         ffmpeg_path="ffmpeg",
-#         threads_to_use=8,
-#         subsample=1,
-#     )
-# )
-
-
-# def mean(x):
-#     return sum(x) / len(x)
-
-
-# print(
-#     VMAF(target_score=90).throughout_video(
-#         source_video_path="short.mp4",
-#         encoded_video_path="short.mp4",
-#         source_start_end_time=("00:00:10.00", "00:00:20.00"),
-#         encode_start_end_time=("00:00:10.00", "00:00:20.00"),
-#         ffmpeg_path="ffmpeg",
-#         threads_to_use=8,
-#         subsample=1,
-#     )
-# )
