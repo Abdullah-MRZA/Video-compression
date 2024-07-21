@@ -1,30 +1,24 @@
 import subprocess
-import file_cache
+from . import file_cache
+from . import ffmpeg_heuristics
 from textwrap import dedent
 from dataclasses import dataclass
-from types import TracebackType
 from typing import Literal
 import json
 import os
 from rich.traceback import install
 
 
+from types import TracebackType
+
 _ = install(show_locals=True)
 
 
-type video = SVTAV1 | H265 | H264 | APPLE_HWENC_H265
-
-# @dataclass()
-# class SVTAV1PSY:
-#     crf_range: range = range(0, 50, 1)
-#     preset: int = 5
-#
-#     def to_subprocess_command(self) -> list[str]: ...
+type VideoCodec = SVTAV1 | H264 | H265 | APPLE_HWENC_H265
 
 
 @dataclass()
 class SVTAV1:
-    # crf_value: int
     preset: int = 8
     tune: Literal["subjective", "PSNR"] = "subjective"
 
@@ -33,7 +27,6 @@ class SVTAV1:
         film_grain: int
         film_grain_denoise: bool
 
-    # -svtav1-params film-grain=X, film-grain-denoise=0
     film_grain: None | Filmgrain = None
     bitdepth: Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
 
@@ -46,7 +39,7 @@ class SVTAV1:
             f"-preset {self.preset}",
             f"-pix_fmt {self.bitdepth}",
             f"-crf {crf}",
-        ]  # , f"-crf {self.crf_value}"]
+        ]
 
         if self.film_grain is not None:
             command.append(f"-svtav1-params film-grain={self.film_grain.film_grain}")
@@ -55,6 +48,9 @@ class SVTAV1:
         command.append(f"-svtav1-params tune={["subjective", "PSNR"].index(self.tune)}")
 
         return command
+
+    def output_file(self, output_filename: str) -> str:
+        return f'"{output_filename}"'
 
 
 @dataclass()
@@ -120,6 +116,9 @@ class H264:
 
         return command
 
+    def output_file(self, output_filename: str) -> str:
+        return f'"{output_filename}"'
+
 
 @dataclass()
 class H265:
@@ -169,24 +168,15 @@ class H265:
 
         return command
 
+    def output_file(self, output_filename: str) -> str:
+        return f'"{output_filename}"'
+
 
 @dataclass()
 class APPLE_HWENC_H265:
     # ACCEPTED_CRF_RANGE: range = range(0, 100 + 1, 1)
     ACCEPTED_CRF_RANGE: range = range(-100, 0 + 1, 1)
     NAME = "APPLE HWENC H265"
-
-    # preset: Literal[
-    #     "ultrafast",
-    #     "superfast",
-    #     "veryfast",
-    #     "faster",
-    #     "fast",
-    #     "medium",
-    #     "slow",
-    #     "slower",
-    #     "veryslow",
-    # ] = "slower"
 
     bitdepth: Literal[
         "videotoolbox_vld",
@@ -201,9 +191,9 @@ class APPLE_HWENC_H265:
     def to_subprocess_command(self, crf: int) -> list[str]:
         command = [
             "-c:v hevc_videotoolbox",
-            # f"-preset {self.preset}",
             f"-pix_fmt {self.bitdepth}",
             f"-q:v {-crf}",
+            # f"-q:v {max(self.ACCEPTED_CRF_RANGE) - crf}",
         ]
 
         if self.make_apple_standard:
@@ -211,21 +201,28 @@ class APPLE_HWENC_H265:
 
         return command
 
+    def output_file(self, output_filename: str) -> str:
+        return f'"{output_filename}"'
 
-class ffms2seek:
+
+class accurate_seek:
     def __init__(
-        self, video_filename_with_extension: str, filename_vpy_without_extension: str
+        self,
+        video_filename_with_extension: str,
+        filename_vpy_without_extension: str,
+        accurate_seek_method: Literal["ffms2", "bs"],
+        extra_commands: str = "",
     ) -> None:
         self.filename_of_vpy = f"{filename_vpy_without_extension.replace('.', '')}.vpy"
         with open(self.filename_of_vpy, "w") as f:
-            _ = f.write(
-                dedent(f"""
+            text = dedent(f"""
                 import vapoursynth as vs
                 core = vs.core
-                clip = core.ffms2.Source(source="{video_filename_with_extension}")
-                clip.set_output(0)
+                clip = core.{accurate_seek_method}.Source(source="{video_filename_with_extension}")
             """)
-            )
+            text += extra_commands
+            text += "\nclip.set_output(0)"
+            _ = f.write(text)
 
     def command(self, start_frame: int | None, end_frame: int | None) -> str:
         start = (
@@ -243,70 +240,60 @@ class ffms2seek:
             print(f"WARNING: Unable to delete file: {self.filename_of_vpy}")
 
 
-@dataclass()
-class FfmpegCommand:
-    input_filename: str
-    codec_information: video
+def run_ffmpeg_command(
+    # CRF used
+    crf_value: int,
+    # video data
+    input_filename: str,
+    output_filename: str,
+    # compression data
+    codec_information: VideoCodec,
+    start_frame: int,
+    end_frame: int,
+    crop_black_bars: bool,
+    keyframe_placement: int | None,
+    input_file_script_seeking: accurate_seek | None,
+) -> None:
+    framerate: float = get_video_metadata(input_filename).frame_rate
+    command: list[str] = []
 
-    start_frame: int
-    end_frame: int
+    if input_file_script_seeking is not None:
+        command.append(input_file_script_seeking.command(start_frame, end_frame))
 
-    output_filename: str
-    ffmpeg_path: str
-
-    crop_black_bars_size: str | None
-    # bit_depth: bitdepth
-    keyframe_placement: int | None
-
-    input_file_script_seeking: ffms2seek | None
-
-    def __enter__(self):
-        return self
-
-    def run_ffmpeg_command(
-        self, crf_value: int, override_output_file_name: str | None = None
-    ) -> None:
-        framerate: float = get_video_metadata(self.input_filename).frame_rate
-
-        command: list[str] = [
-            self.input_file_script_seeking.command(self.start_frame, self.end_frame)
-            if self.input_file_script_seeking is not None
-            else "",
-            self.ffmpeg_path,
-            "-hide_banner -loglevel error",
+    command.extend(
+        [
+            "ffmpeg -hide_banner -loglevel error",
             f"-r {framerate}",
-            "-i -"
-            if self.input_file_script_seeking is not None
-            else f"-i {self.input_filename}",
-            *self.codec_information.to_subprocess_command(crf_value),
+        ]
+    )
+
+    if input_file_script_seeking is not None:
+        command.append("-i -")
+    else:
+        command.append(f"-i {input_filename}")
+
+    command.extend(
+        [
+            *codec_information.to_subprocess_command(crf_value),
             "-an",
             "-y",
-            f'"{self.output_filename}"'
-            if override_output_file_name is None
-            else override_output_file_name,
+            codec_information.output_file(output_filename),
         ]
+    )
 
-        if self.crop_black_bars_size is not None:
-            command.insert(-1, f"-vf {self.crop_black_bars_size}")
+    if crop_black_bars:
+        command.insert(-1, f"-vf {ffmpeg_heuristics.crop_black_bars(input_filename)}")
 
-        if self.keyframe_placement is not None:
-            command.insert(-1, f"-g {self.keyframe_placement}")
+    if keyframe_placement is not None:
+        command.insert(-1, f"-g {keyframe_placement}")
 
-        print(" ".join(command))
-        _ = subprocess.run(" ".join(command), shell=True, check=True)
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
-        exc_traceback: TracebackType | None,
-    ) -> None: ...
+    print(" ".join(command))
+    _ = subprocess.run(" ".join(command), shell=True, check=True)
 
 
 def concatenate_video_files(
     list_of_video_files: list[str],
     output_filename_with_extension: str,
-    ffmpeg_path: str,
 ):
     """
     NOTE THE CODEC OF THE VIDEO FILES MUST BE THE SAME!
@@ -316,10 +303,10 @@ def concatenate_video_files(
         _ = file.write("\n".join(f"file '{x}'" for x in list_of_video_files))
 
     print(
-        f'RUNNING COMMAND: {ffmpeg_path} -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"'
+        f'RUNNING COMMAND: ffmpeg -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"'
     )
     _ = subprocess.run(  # -safe 0 (has some wierd effect of changing DTS values)
-        f'{ffmpeg_path} -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"',
+        f'ffmpeg -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"',
         shell=True,
         check=True,
     )
@@ -351,13 +338,9 @@ class VideoMetadata:
     # is_HDR: bool
 
 
-# @file_cache.cache(prefix_name="videoMetadata-")
-# @cache
 @file_cache.cache()
 def get_video_metadata(
     filename: str,
-    # write_to_cache: bool = True,
-    # ffprobe_path: str = "ffprobe",  # , print_raw: bool = False
 ) -> VideoMetadata:
     def make_video_metadata(json_data: dict) -> VideoMetadata:
         # BUG: first (0) stream may not be video...
@@ -365,33 +348,20 @@ def get_video_metadata(
             file_name=json_data["format"]["filename"],  # same as `filename`...
             width=int(json_data["streams"][0]["width"]),
             height=int(json_data["streams"][0]["height"]),
-            # frame rate info
-            frame_rate=float(
-                eval(json_data["streams"][0]["r_frame_rate"])
-            ),  # FRACTION OR DECIMAL --> WARNING: may be unsafe
+            frame_rate=float(eval(json_data["streams"][0]["r_frame_rate"])),
             total_frames=int(json_data["streams"][0]["nb_read_frames"]),
-            # pixel info
             pix_fmt=json_data["streams"][0]["pix_fmt"],
             codec=json_data["streams"][0]["codec_name"],
-            # timings
             start_time=float(json_data["format"]["start_time"]),
             duration=float(json_data["format"]["duration"]),
-            # other data
             contains_audio=any(
                 True for x in json_data["streams"] if x["codec_type"] == "audio"
             ),
             file_size=int(json_data["format"]["size"]),
             bitrate=int(json_data["format"]["bit_rate"]),
-            # is_HDR=(json_data["streams"][0]["color_space"] == "bt2020nc") # https://video.stackexchange.com/questions/22059/how-to-identify-hdr-video
-            # and (json_data["streams"][0]["color_transfer"] == "smpte2084")
-            # and (json_data["streams"][0]["color_primaries"] == "bt2020"),
         )
 
-    # ffprobe -v quiet -print_format json -show_format -show_streams short.mp4
-    print(f"Getting metadata of {filename}")
-    # another command: % ffprobe -i small-trim.mp4 -print_format json -loglevel fatal -show_streams -count_frames
     data = subprocess.run(
-        # f'{ffprobe_path} -v quiet -print_format json -show_format -show_streams -count_frames "{filename}"',
         f'ffprobe -v quiet -print_format json -show_format -show_streams -count_frames "{filename}"',
         check=True,
         shell=True,
@@ -401,9 +371,6 @@ def get_video_metadata(
     json_data: dict = json.loads(data)
 
     return make_video_metadata(json_data)
-
-    # if print_raw:
-    #     print(json_data)
 
 
 # {
@@ -551,7 +518,6 @@ def get_video_metadata(
 def visual_comparison_of_video_with_blend_filter(
     source_video_path: str,
     encoded_video_path: str,
-    ffmpeg_path: str,
     output_filename_with_extension: str,
     # source_start_end_frame: None | tuple[int, int] = None,
     # encode_start_end_frame: None | tuple[int, int] = None,
@@ -563,30 +529,17 @@ def visual_comparison_of_video_with_blend_filter(
     -c:v libx264 -crf 18 -c:a copy output.mkv
     """
     print("RUNNING visual_comparison_of_video_with_blend_filter")
-    ffmpeg_command: list[str] = [f"{ffmpeg_path} -hide_banner -loglevel error "]
-    # frame_rate = get_frame_rate(source_video_path)
-
-    # if encode_start_end_frame is not None:
-    #     ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
-    #     ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
+    ffmpeg_command: list[str] = [f"ffmpeg -hide_banner -loglevel error "]
     ffmpeg_command.extend(["-i", encoded_video_path])
-
-    # if source_start_end_frame is not None:
-    #     ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
-    #     ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
     ffmpeg_command.extend(["-i", source_video_path])
-
-    # ffmpeg_command.append('-filter_complex "blend=all_mode=difference"')
     ffmpeg_command.append(
-        "-filter_complex '[0:v]setpts=PTS-STARTPTS[first];[1:v]setpts=PTS-STARTPTS[second];[first][second]blend=all_mode=difference'"  # [out]
+        "-filter_complex '[0:v]setpts=PTS-STARTPTS[first];[1:v]setpts=PTS-STARTPTS[second];[first][second]blend=all_mode=difference'"
     )
 
     ffmpeg_command.append(
         f'-c:v libx264 -y -crf {quality_crf_h264} -an "{output_filename_with_extension}"'
     )
     try:
-        # + '-filter_complex "[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]blend=all_mode=difference" -c:v libx264 -y -crf 18 ' # this is actually harmful?? because the "start_time" in ffprobe don't line up, and this also causes them to not line up
-        # f"{ffmpeg_path} -i {encoded_video_path} -i {source_video_path} -hide_banner -loglevel error "
         print(" ".join(ffmpeg_command))
         _ = subprocess.run(
             " ".join(ffmpeg_command),
@@ -627,26 +580,3 @@ def combine_audio_and_subtitle_streams_from_another_video(
         print(
             "ERROR IN combine_audio_and_subtitle_streams_from_another_video() function"
         )
-
-
-# ffmpeg -i video1.mkv -i video2.mkv -filter_complex "[0:V:0]crop=960:1080:0:0[v1];[1:V:0]crop=960:1080:960:0[v2];[v1][v2]hstack=2[out]" -map "[out]" output.mkv
-# https://old.reddit.com/r/ffmpeg/comments/15jlm93/how_to_achieve_side_by_screen_split_screen_from/
-
-# visual_comparison_of_video_with_blend_filter(
-#     "input.mov", "input-copy.mov", "ffmpeg", "TESTTEST.mkv"
-# )
-
-# visual_comparison_of_video_with_blend_filter(
-#     "short-smallest.mp4", "TEST.mkv", "ffmpeg", "TESTTEST.mkv"
-# )
-#
-# print(
-#     os.system(
-#         "ffprobe -i short-smallest.mp4 -print_format json -loglevel fatal -show_streams -count_frames -select_streams v | grep start_tim"
-#     )
-# )
-# print(
-#     os.system(
-#         "ffprobe -i TEST.mkv -print_format json -loglevel fatal -show_streams -count_frames -select_streams v | grep start_tim"
-#     )
-# )

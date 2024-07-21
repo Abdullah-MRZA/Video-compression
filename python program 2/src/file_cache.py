@@ -1,6 +1,4 @@
 from dataclasses import dataclass
-import pathlib
-import time
 from typing import Any, TypeVar, Callable, cast
 import functools
 import os
@@ -18,67 +16,66 @@ def calculate_sha(text: str) -> str:
 
 
 TCallable = TypeVar("TCallable", bound=Callable)
-# _basepath = Path()
 
-cache_directory = "cache_dir"
+CACHE_DIRECTORY: str = "cache_dir"
 
 
 @dataclass()
 class data:
     cache_filename: str
     cache_data: Any
+    delete_afterwards: bool
 
 
-#
-#     def write_to_file(self):
-#         with open(self.filename, "wb") as f:
-#             pickle.dump(self.filedata, f)
-#
-#     def recieve_from_file(self) -> Any:
-#         with open(self.filename, "wb") as f:
-#             return pickle.load(f)
-#
-#
+# pyright: reportAny=false
+# pyright: reportUnknownParameterType=false
+# pyright: reportMissingParameterType=false
+# pyright: reportUnknownArgumentType=false
+# pyright: reportUnknownVariableType=false
+# pyright: reportMissingTypeArgument=false
+
+
 cache_data: list[data] = []
 
 
-def cache(prefix_name: str = "", extension: str = "pickle", persistent: bool = False):
-    # # if cache_directory not in (x.name for x in _basepath.iterdir()):
-    # try:
-    #     Path(cache_directory).mkdir()
-    # except FileExistsError:
-    #     pass
-
-    if not os.path.exists(cache_directory):
-        os.makedirs(cache_directory)
+def cache(
+    prefix_name: str = "",
+    extension: str = "pickle",
+    persistent_after_termination: bool = False,
+):
+    if not os.path.exists(CACHE_DIRECTORY):
+        os.makedirs(CACHE_DIRECTORY)
 
     def file_cache_decorator(annotated_function: TCallable) -> TCallable:
         @functools.wraps(annotated_function)
         def wrapper(*args, **kwargs):
-            function_signature = calculate_sha(
+            function_signature_unique = calculate_sha(
                 inspect.getsource(annotated_function)
                 + "".join(str(x) for x in args)
                 + "".join(f"{x[0]}{x[1]}" for x in kwargs.items())
             )
 
-            cache_file = (
-                # f"{cache_directory}/{prefix_name}cache-{function_signature}.{extension}"
-                f"{prefix_name}cache-{function_signature}.{extension}"
+            cache_filename = (
+                f"{prefix_name}cache-{function_signature_unique}.{extension}"
             )
 
-            if os.path.exists(cache_file):
-                with open(cache_file, "rb") as f:
+            if matching_data := [
+                x for x in cache_data if x.cache_filename == cache_filename
+            ]:
+                return matching_data[0].cache_data
+
+            if os.path.exists(cache_filename):
+                with open(cache_filename, "rb") as f:
                     return pickle.load(f)
-            elif not persistent:
-                global cache_data
-                recieved_value = annotated_function(*args, **kwargs)
-                cache_data.append(data(cache_file, recieved_value))
-                return recieved_value
-            else:
-                recieved_value = annotated_function(*args, **kwargs)
-                with open(cache_file, "wb") as f:
-                    pickle.dump(recieved_value, f)
-                return recieved_value
+
+            recieved_value = annotated_function(*args, **kwargs)
+
+            global cache_data
+            cache_data.append(
+                data(cache_filename, recieved_value, not persistent_after_termination)
+            )
+
+            return recieved_value
 
         return cast(TCallable, wrapper)
 
@@ -93,24 +90,130 @@ def write_cache_to_file():
 
 _ = atexit.register(write_cache_to_file)
 
-# def cache_cleanup():
-#     os.removedirs
 
-# def total_time(func):
-#     def wrapper():
-#         start = time.perf_counter()
-#         func()
-#         elapsed = time.perf_counter() - start
+def cache_cleanup():
+    for file in (x for x in cache_data if x.delete_afterwards):
+        try:
+            os.remove(file.cache_filename)
+        except Exception as e:
+            print(f"ERROR REMOVING CACHE FILE: {e}")
+
+
+# import hashlib
+# import inspect
+# import os
+# import pickle
 #
-#     return wrapper
-
-
-if __name__ == "__main__":
-
-    @cache
-    def get_result(delay: int) -> str:
-        time.sleep(delay)
-        return str(delay)
-
-    print(get_result(1))
-    print(get_result(2))
+# from loguru import logger
+#
+# DISABLE_CACHE = False
+#
+# MAX_DEPTH = 6
+# if DISABLE_CACHE:
+#     print("File cache is disabled.")
+#
+#
+# def recursive_hash(value, depth=0, ignore_params=[]):
+#     """Hash primitives recursively with maximum depth."""
+#     if depth > MAX_DEPTH:
+#         return hashlib.md5("max_depth_reached".encode()).hexdigest()
+#
+#     if isinstance(value, (int, float, str, bool, bytes)):
+#         return hashlib.md5(str(value).encode()).hexdigest()
+#     elif isinstance(value, (list, tuple)):
+#         return hashlib.md5(
+#             "".join(
+#                 [recursive_hash(item, depth + 1, ignore_params) for item in value]
+#             ).encode()
+#         ).hexdigest()
+#     elif isinstance(value, dict):
+#         return hashlib.md5(
+#             "".join(
+#                 [
+#                     recursive_hash(key, depth + 1, ignore_params)
+#                     + recursive_hash(val, depth + 1, ignore_params)
+#                     for key, val in value.items()
+#                     if key not in ignore_params
+#                 ]
+#             ).encode()
+#         ).hexdigest()
+#     elif hasattr(value, "__dict__") and value.__class__.__name__ not in ignore_params:
+#         return recursive_hash(value.__dict__, depth + 1, ignore_params)
+#     else:
+#         return hashlib.md5("unknown".encode()).hexdigest()
+#
+#
+# def hash_code(code):
+#     return hashlib.md5(code.encode()).hexdigest()
+#
+#
+# def file_cache(ignore_params=[], verbose=False):
+#     """Decorator to cache function output based on its inputs, ignoring specified parameters.
+#     Ignore parameters are used to avoid caching on non-deterministic inputs, such as timestamps.
+#     We can also ignore parameters that are slow to serialize/constant across runs, such as large objects.
+#     """
+#
+#     def decorator(func):
+#         if DISABLE_CACHE:
+#             if verbose:
+#                 print("Cache is disabled for function: " + func.__name__)
+#             return func
+#         func_source_code_hash = hash_code(inspect.getsource(func))
+#
+#         def wrapper(*args, **kwargs):
+#             cache_dir = "/mnt/caches/file_cache"
+#             os.makedirs(cache_dir, exist_ok=True)
+#
+#             # Convert args to a dictionary based on the function's signature
+#             args_names = func.__code__.co_varnames[: func.__code__.co_argcount]
+#             args_dict = dict(zip(args_names, args))
+#
+#             # Remove ignored params
+#             kwargs_clone = kwargs.copy()
+#             for param in ignore_params:
+#                 args_dict.pop(param, None)
+#                 kwargs_clone.pop(param, None)
+#
+#             # Create hash based on argument names, argument values, and function source code
+#             arg_hash = (
+#                 recursive_hash(args_dict, ignore_params=ignore_params)
+#                 + recursive_hash(kwargs_clone, ignore_params=ignore_params)
+#                 + func_source_code_hash
+#             )
+#             cache_file = os.path.join(
+#                 cache_dir, f"{func.__module__}_{func.__name__}_{arg_hash}.pickle"
+#             )
+#
+#             try:
+#                 # If cache exists, load and return it
+#                 if os.path.exists(cache_file):
+#                     if verbose:
+#                         print("Used cache for function: " + func.__name__)
+#                     with open(cache_file, "rb") as f:
+#                         return pickle.load(f)
+#             except Exception:
+#                 logger.info("Unpickling failed")
+#
+#             # Otherwise, call the function and save its result to the cache
+#             result = func(*args, **kwargs)
+#             try:
+#                 with open(cache_file, "wb") as f:
+#                     pickle.dump(result, f)
+#             except Exception as e:
+#                 logger.info(f"Pickling failed: {e}")
+#             return result
+#
+#         return wrapper
+#
+#     return decorator
+#
+#
+# if __name__ == "__main__":
+#
+#     @cache
+#     def get_result(delay: int) -> str:
+#         time.sleep(delay)
+#         return str(delay)
+#
+#     print(get_result(1))
+#     print(get_result(2))

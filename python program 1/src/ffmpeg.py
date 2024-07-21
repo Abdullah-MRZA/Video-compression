@@ -6,21 +6,13 @@ from types import TracebackType
 from typing import Literal
 import json
 import os
-# from rich import print
-
 from rich.traceback import install
-# from functools import cache
 
-from hashlib import sha256
-import pickle
 
 _ = install(show_locals=True)
 
 
-type video = SVTAV1 | H265 | H264
-# TODO add VP9 support when I feel like it
-# type bitdepth = Literal["yuv420p10le", "yuv420p"]
-
+type video = SVTAV1 | H265 | H264 | APPLE_HWENC_H265
 
 # @dataclass()
 # class SVTAV1PSY:
@@ -45,16 +37,15 @@ class SVTAV1:
     film_grain: None | Filmgrain = None
     bitdepth: Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
 
-    # const data
     ACCEPTED_CRF_RANGE: range = range(0, 63 + 1, 1)
     NAME = "SVTAV1"
 
-    def to_subprocess_command(self) -> list[str]:
-        # return [f"-crf {}", f"-preset {preset}"] + [f"-svtav1-params film-grain={film-grain[0]}"]
+    def to_subprocess_command(self, crf: int) -> list[str]:
         command = [
             "-c:v libsvtav1",
             f"-preset {self.preset}",
             f"-pix_fmt {self.bitdepth}",
+            f"-crf {crf}",
         ]  # , f"-crf {self.crf_value}"]
 
         if self.film_grain is not None:
@@ -94,13 +85,31 @@ class H264:
         "ssim",
     ] = None
     faststart: bool = False  # does this get translated to final file?
-    bitdepth: Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
 
-    def to_subprocess_command(self) -> list[str]:
+    bitdepth: Literal[
+        "yuv420p",
+        "yuvj420p",
+        "yuv422p",
+        "yuvj422p",
+        "yuv444p",
+        "yuvj444p",
+        "nv12",
+        "nv16",
+        "nv21",
+        "yuv420p10le",
+        "yuv422p10le",
+        "yuv444p10le",
+        "nv20le",
+        "gray",
+        "gray10le",
+    ] = "yuv420p10le"
+
+    def to_subprocess_command(self, crf: int) -> list[str]:
         command = [
             "-c:v libx264",
             f"-preset {self.preset}",
             f"-pix_fmt {self.bitdepth}",
+            f"-crf {crf}",
         ]
 
         if self.tune is not None:
@@ -129,24 +138,78 @@ class H265:
         "veryslow",
     ] = "slower"
 
-    bitdepth: Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
+    bitdepth: Literal[
+        "yuv420p",
+        "yuvj420p",
+        "yuv422p",
+        "yuvj422p",
+        "yuv444p",
+        "yuvj444p",
+        "gbrp",
+        "yuv420p10le",
+        "yuv422p10le",
+        "yuv444p10le",
+        "gbrp10le",
+        "yuv420p12le",
+        "yuv422p12le",
+        "yuv444p12le",
+        "gbrp12le",
+        "gray",
+        "gray10le",
+        "gray12le",
+    ] = "yuv420p10le"
 
-    def to_subprocess_command(self) -> list[str]:
+    def to_subprocess_command(self, crf: int) -> list[str]:
         command = [
             "-c:v libx265",
             f"-preset {self.preset}",
             f"-pix_fmt {self.bitdepth}",
+            f"-crf {crf}",
         ]
 
         return command
 
 
-# @dataclass()
-# class VP9:
-#     ACCEPTED_CRF_RANGE: range = range(0, 50, 1)
-#     two_passes: bool = True
-#
-#     def to_subprocess_command(self) -> list[str]: ...
+@dataclass()
+class APPLE_HWENC_H265:
+    # ACCEPTED_CRF_RANGE: range = range(0, 100 + 1, 1)
+    ACCEPTED_CRF_RANGE: range = range(-100, 0 + 1, 1)
+    NAME = "APPLE HWENC H265"
+
+    # preset: Literal[
+    #     "ultrafast",
+    #     "superfast",
+    #     "veryfast",
+    #     "faster",
+    #     "fast",
+    #     "medium",
+    #     "slow",
+    #     "slower",
+    #     "veryslow",
+    # ] = "slower"
+
+    bitdepth: Literal[
+        "videotoolbox_vld",
+        "nv12",
+        "yuv420p",
+        "bgra",
+        "p010le",
+    ] = "p010le"
+
+    make_apple_standard: bool = True
+
+    def to_subprocess_command(self, crf: int) -> list[str]:
+        command = [
+            "-c:v hevc_videotoolbox",
+            # f"-preset {self.preset}",
+            f"-pix_fmt {self.bitdepth}",
+            f"-q:v {-crf}",
+        ]
+
+        if self.make_apple_standard:
+            command.append("-tag:v hvc1")
+
+        return command
 
 
 class ffms2seek:
@@ -154,7 +217,6 @@ class ffms2seek:
         self, video_filename_with_extension: str, filename_vpy_without_extension: str
     ) -> None:
         self.filename_of_vpy = f"{filename_vpy_without_extension.replace('.', '')}.vpy"
-        # for seeking
         with open(self.filename_of_vpy, "w") as f:
             _ = f.write(
                 dedent(f"""
@@ -164,7 +226,6 @@ class ffms2seek:
                 clip.set_output(0)
             """)
             )
-        # _ = input("NOTE MADE FILE")
 
     def command(self, start_frame: int | None, end_frame: int | None) -> str:
         start = (
@@ -205,37 +266,21 @@ class FfmpegCommand:
     def run_ffmpeg_command(
         self, crf_value: int, override_output_file_name: str | None = None
     ) -> None:
-        # self.end_time_frame -= (
-        #     0  # TO PREVENT OVERLAP BETWEEN FRAMES --> prevent duplication
-        # )
-
-        # framerate: float = get_frame_rate(self.input_filename)
         framerate: float = get_video_metadata(self.input_filename).frame_rate
-        # start_time_seconds = self.start_frame / framerate
-        # end_time_seconds = self.end_frame / framerate
-        command: list[str] = [  # ADD -r COMMANDD!!
+
+        command: list[str] = [
             self.input_file_script_seeking.command(self.start_frame, self.end_frame)
             if self.input_file_script_seeking is not None
             else "",
             self.ffmpeg_path,
             "-hide_banner -loglevel error",
-            # "-accurate_seek",
             f"-r {framerate}",
-            # f"-ss {start_time_seconds}",  # NOTE: IS THIS OKAY??? (SEEMS SO??) + IS FASTER?
-            # f"-to {end_time_seconds}",
-            # f'-i "{self.input_filename}"',
             "-i -"
             if self.input_file_script_seeking is not None
             else f"-i {self.input_filename}",
-            # f"-ss {start_time_seconds}",  # -ss After is **very important** for accuracy!!
-            # f"-to {end_time_seconds}",
-            # f"-vf trim={self.start_time_seconds}:{self.end_time_seconds},setpts=PTS-STARTPTS",  # is this faster + as accurate?
-            *self.codec_information.to_subprocess_command(),
+            *self.codec_information.to_subprocess_command(crf_value),
             "-an",
-            # f"-pix_fmt {self.bit_depth}",
             "-y",
-            f"-crf {crf_value}",
-            # f'"intermediate-{self.output_filename}"',
             f'"{self.output_filename}"'
             if override_output_file_name is None
             else override_output_file_name,
@@ -248,13 +293,7 @@ class FfmpegCommand:
             command.insert(-1, f"-g {self.keyframe_placement}")
 
         print(" ".join(command))
-        # _ = os.system(" ".join(command))
         _ = subprocess.run(" ".join(command), shell=True, check=True)
-
-        # try:
-        #     os.remove(script_name)
-        # except FileNotFoundError:
-        #     print("Error removing script")
 
     def __exit__(
         self,
@@ -273,13 +312,9 @@ def concatenate_video_files(
     NOTE THE CODEC OF THE VIDEO FILES MUST BE THE SAME!
     This combines the video files together
     """
-    # New method using concat demuxer
     with open("video_list.txt", "w") as file:
         _ = file.write("\n".join(f"file '{x}'" for x in list_of_video_files))
 
-    # _ = os.system(
-    #     f'ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension}"'  # -hide_banner -loglevel error
-    # )
     print(
         f'RUNNING COMMAND: {ffmpeg_path} -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"'
     )
@@ -293,13 +328,6 @@ def concatenate_video_files(
         os.remove("video_list.txt")
     except FileNotFoundError:
         print("File Not found error: video_list.txt can't be deleted")
-
-
-# concatenate_video_files([f"out{x}.mp4" for x in range(3)], "TEST.mkv", "ffmpeg")
-
-# concatenate_video_files(
-#     [f"{x}-part.mkv" for x in range(0, 6)], "utasjldfkajs.mkv", "ffmpeg"
-# )
 
 
 @dataclass()
@@ -323,11 +351,12 @@ class VideoMetadata:
     # is_HDR: bool
 
 
+# @file_cache.cache(prefix_name="videoMetadata-")
 # @cache
 @file_cache.cache()
 def get_video_metadata(
     filename: str,
-    write_to_cache: bool = True,
+    # write_to_cache: bool = True,
     # ffprobe_path: str = "ffprobe",  # , print_raw: bool = False
 ) -> VideoMetadata:
     def make_video_metadata(json_data: dict) -> VideoMetadata:
@@ -359,18 +388,6 @@ def get_video_metadata(
         )
 
     # ffprobe -v quiet -print_format json -show_format -show_streams short.mp4
-    with open(filename, "rb") as f:
-        data = f.read()
-        sha_value = sha256(data).hexdigest()
-        cache_file = f"{filename}-{sha_value}-video_metadata.pickle"
-
-    if os.path.exists(cache_file):
-        print("Recieving from file")
-        with open(cache_file, "rb") as f:
-            data_from_cache: dict = pickle.load(f)
-            print("Recieved video metadata from pickle cache file")
-            return make_video_metadata(data_from_cache)
-
     print(f"Getting metadata of {filename}")
     # another command: % ffprobe -i small-trim.mp4 -print_format json -loglevel fatal -show_streams -count_frames
     data = subprocess.run(
@@ -382,9 +399,6 @@ def get_video_metadata(
     ).stdout.decode()
 
     json_data: dict = json.loads(data)
-
-    with open(cache_file, "wb") as f:
-        pickle.dump(json_data, f)
 
     return make_video_metadata(json_data)
 
@@ -613,19 +627,6 @@ def combine_audio_and_subtitle_streams_from_another_video(
         print(
             "ERROR IN combine_audio_and_subtitle_streams_from_another_video() function"
         )
-
-
-# # Is this necessary? --> Now legacy
-# def get_frame_rate(filename: str) -> float:
-#     data = subprocess.run(
-#         f"ffprobe -i {filename} -print_format json -loglevel fatal -show_streams -count_frames -select_streams v | grep r_frame_rate",
-#         shell=True,
-#         check=True,
-#         capture_output=True,
-#     ).stdout.decode()
-#     return float(
-#         eval(data.strip().split(":")[1].replace(",", "").replace('"', "").strip())
-#     )
 
 
 # ffmpeg -i video1.mkv -i video2.mkv -filter_complex "[0:V:0]crop=960:1080:0:0[v1];[1:V:0]crop=960:1080:960:0[v2];[v1][v2]hstack=2[out]" -map "[out]" output.mkv

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-import file_cache
-import ffmpeg
+from . import file_cache
+from . import ffmpeg
 import os
 import json
 import subprocess
@@ -39,7 +39,6 @@ class VMAF:
         self,
         source_video_path: str,
         encoded_video_path: str,  # | None
-        ffmpeg_path: str,
         accurate_seek_ffms2: ffmpeg.ffms2seek,
         # input_file_script_seeking: str,
         source_start_end_frame: None | tuple[int, int | None] = None,
@@ -66,16 +65,10 @@ class VMAF:
 
         ffmpeg_command.append(ffmpeg_path)
 
-        ffmpeg_command.extend(["-r", str(frame_rate)])  # (was) important to include
-        # if encode_start_end_frame is not None:
-        #     ffmpeg_command.extend(["-ss", str(encode_start_end_frame[0] / frame_rate)])
-        #     ffmpeg_command.extend(["-to", str(encode_start_end_frame[1] / frame_rate)])
+        ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", encoded_video_path])
 
         ffmpeg_command.extend(["-r", str(frame_rate)])
-        # if source_start_end_frame is not None:
-        #     ffmpeg_command.extend(["-ss", str(source_start_end_frame[0] / frame_rate)])
-        #     ffmpeg_command.extend(["-to", str(source_start_end_frame[1] / frame_rate)])
         ffmpeg_command.extend(["-i", source_video_path])
 
         # https://www.bannerbear.com/blog/how-to-trim-a-video-using-ffmpeg/#:~:text=You%20can%20trim%20the%20input%20video%20to%20a%20specific%20duration,the%20beginning%20of%20the%20video.&text=In%20the%20command%20above%2C%20%2Dvf,the%20duration%20to%203%20seconds.
@@ -123,7 +116,6 @@ class VMAF:
         self,
         source_video_path: str,
         encoded_video_path: str,  # | None,
-        ffmpeg_path: str,
         accurate_seek_ffms2: ffmpeg.ffms2seek,
         source_start_end_frame: None | tuple[int, int | None] = None,
         # encode_start_end_frame: None | tuple[int, int] = None,
@@ -250,9 +242,9 @@ class VMAF:
 #     ) -> int: ...
 
 
-def crop_black_bars(source_video_path: str, ffmpeg_path: str) -> str:
+def crop_black_bars(source_video_path: str) -> str:
     ffmpeg_output = subprocess.getoutput(
-        f'{ffmpeg_path} -i "{source_video_path}" -t 10 -vf cropdetect -f null -'
+        f'ffmpeg -i "{source_video_path}" -t 10 -vf cropdetect -f null -'
     )
     data = [x for x in ffmpeg_output.splitlines() if "crop=" in x][-1]
 

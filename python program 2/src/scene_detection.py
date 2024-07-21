@@ -1,10 +1,7 @@
 from dataclasses import dataclass
-import file_cache
+from . import file_cache
 import scenedetect as sd
-from hashlib import sha256
-import ffmpeg
-# import os
-# import pickle
+from . import ffmpeg
 
 
 @dataclass()

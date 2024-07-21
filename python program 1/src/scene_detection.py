@@ -61,28 +61,12 @@ def find_scenes(
     Function that gets the frames of the different scenes in the video
     - for threshold, 27.0 is default value
     """
-    # with open(video_path, "rb") as f:
-    #     data = f.read() + str.encode(str(minimum_length_scene_seconds))
-    #     sha_value = sha256(data).hexdigest()
-    #     # cache_file = f"{video_path}-{sha_value}-{minimum_length_scene_seconds}.pickle"
-    #     cache_file = f"{video_path}-{sha_value}-all_scenes.pickle"
-    #
-    # if os.path.exists(cache_file):
-    #     print("Recieving from file")
-    #     with open(cache_file, "rb") as f:
-    #         scene_data_from_file: list[SceneData] = pickle.load(f)
-    #         scene_data = _ensure_scene_length_is_larger_than_minimum_length(
-    #             scene_data_from_file,
-    #             ffmpeg.get_video_metadata(video_path).frame_rate,
-    #             minimum_length_scene_seconds,
-    #         )
-    #         return scene_data
-
     video = sd.open_video(video_path)
     scene_manager = sd.SceneManager()
     # scene_manager.add_detector(sd.ContentDetector(threshold=threshold))
 
     scene_manager.add_detector(sd.ContentDetector())
+    # scene_manager.add_detector(sd.ThresholdDetector())
     # scene_manager.add_detector(sd.AdaptiveDetector())
     # scene_manager.add_detector(sd.HashDetector())
 
@@ -104,10 +88,6 @@ def find_scenes(
 
     if len(scene_data) == 0:
         scene_data = [SceneData(start_frame=0, end_frame=video_data.total_frames)]
-
-    # with open(cache_file, "wb") as f:
-    #     # _ = f.write(pickle.dumps(scene_data))
-    #     pickle.dump(scene_data, f)
 
     return scene_data
 

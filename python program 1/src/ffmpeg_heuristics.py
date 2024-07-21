@@ -260,21 +260,21 @@ def crop_black_bars(source_video_path: str, ffmpeg_path: str) -> str:
     return data.rsplit(maxsplit=1)[-1]
 
 
-class FfprobeInformation:
-    @staticmethod
-    @file_cache.cache()
-    def check_contains_any_audio(
-        input_filename_with_extension: str, ffprobe_path: str
-    ) -> bool:
-        """Determines if the input file contains audio (is this robust??)"""
-        ffprobe_output = subprocess.getoutput(
-            f"{ffprobe_path} {input_filename_with_extension}"
-        )
-        return any(
-            True
-            for x in ffprobe_output.splitlines()
-            if x.strip().startswith("Stream") and "Audio" in x
-        )
+# class FfprobeInformation:
+#     @staticmethod
+#     @file_cache.cache()
+#     def check_contains_any_audio(
+#         input_filename_with_extension: str, ffprobe_path: str
+#     ) -> bool:
+#         """Determines if the input file contains audio (is this robust??)"""
+#         ffprobe_output = subprocess.getoutput(
+#             f"{ffprobe_path} {input_filename_with_extension}"
+#         )
+#         return any(
+#             True
+#             for x in ffprobe_output.splitlines()
+#             if x.strip().startswith("Stream") and "Audio" in x
+#         )
 
 
 # TESTS:

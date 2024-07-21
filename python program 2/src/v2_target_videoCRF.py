@@ -1,8 +1,9 @@
+from dataclasses import dataclass
 from typing import Literal
-import ffmpeg
-import ffmpeg_heuristics
-import graph_generate
-import scene_detection
+from . import ffmpeg
+from . import ffmpeg_heuristics
+from . import graph_generate
+from . import scene_detection
 
 from rich import print
 from rich.progress import Progress, TimeElapsedColumn, track
@@ -10,10 +11,8 @@ import concurrent.futures
 import os
 import time
 
-# from hashlib import sha256
 from rich.console import Console
 import pickle
-# from multiprocessing import Pool
 
 rich_console = Console()
 progress = Progress(
@@ -22,35 +21,39 @@ progress = Progress(
 )
 
 
-def compressing_video(
-    full_input_filename: str,
-    full_output_filename: str,
-    codec: ffmpeg.video,
-    heuristic: ffmpeg_heuristics.heuristic,
-    # scene_detection_threshold: int = 27,
-    minimum_scene_length_seconds: float,
-    audio_commands: None | str = "-c:a copy",  # TODO: Remove None option
-    subtitle_commands: None | str = "-c:s copy",
-    multithreading_threads: int = 2,
-    scenes_length_sort: Literal[
-        "chronological", "largest first", "smallest first"
-    ] = "chronological",
-    # crop_black_bars: bool = True,
-    make_comparison_with_blend_filter: bool = True,
-) -> None:
-    assert os.path.isfile(
-        full_input_filename
-    ), f"CRITICAL ERROR: {full_input_filename} Does Not Exist!!"
+@dataclass
+class videoData:
+    full_input_filename: str
+    full_output_filename: str
+    codec: ffmpeg.VideoCodec
+    heuristic: ffmpeg_heuristics.heuristic
+    minimum_scene_length_seconds: float
+    audio_commands: str = "-c:a copy"
+    subtitle_commands: str = "-c:s copy"
+    multithreading_threads: int = 2
+    scenes_length_sort: Literal["chronological", "largest first", "smallest first"] = (
+        "largest first"  # ensures that CPU always being used
+    )
+    crop_black_bars: bool = True
+    make_comparison_with_blend_filter: bool = True
 
-    with rich_console.status(f"Getting metadata of input file ({full_input_filename})"):
-        input_filename_data = ffmpeg.get_video_metadata(full_input_filename)
+
+def compressing_video(video: videoData) -> None:
+    assert os.path.isfile(
+        video.full_input_filename
+    ), f"CRITICAL ERROR: {video.full_input_filename} Does Not Exist!!"
+
+    with rich_console.status(
+        f"Getting metadata of input file ({video.full_input_filename})"
+    ):
+        input_filename_data = ffmpeg.get_video_metadata(video.full_input_filename)
 
     with rich_console.status("Calculating scenes"):
         raw_video_scenes = scene_detection.find_scenes(
-            full_input_filename, minimum_scene_length_seconds
+            video.full_input_filename, video.minimum_scene_length_seconds
         )
         print(raw_video_scenes)
-        match scenes_length_sort:
+        match video.scenes_length_sort:
             case "smallest first":
                 video_scenes = sorted(
                     raw_video_scenes,
@@ -70,24 +73,25 @@ def compressing_video(
             f"scene durations (seconds): {[round(scene_detection.scene_len_seconds(x, input_filename_data.frame_rate), 2) for x in video_scenes]}"
         )
 
-    seeking_data_input_file = ffmpeg.ffms2seek(full_input_filename, full_input_filename)
+    seeking_data_input_file = ffmpeg.accurate_seek(
+        video.full_input_filename, video.full_input_filename, "ffms2", extra_commands=""
+    )
 
     def compress_video_section_call(
         section: int, video_section: scene_detection.SceneData
     ) -> tuple[int, scene_detection.SceneData, int, float, list[float]]:
         optimal_crf, heuristic_reached, heuristic_throughout = _compress_video_section(
-            full_input_filename,
+            video.full_input_filename,
             input_filename_data,
             _temporary_video_file_names(section),
-            codec,
-            heuristic,
+            video.codec,
+            video.heuristic,
             video_section.start_frame,
             video_section.end_frame,
             seeking_data_input_file,
         )
         return (
             section,
-            # video_section.start_frame,
             video_section,
             optimal_crf,
             heuristic_reached,
@@ -98,20 +102,10 @@ def compressing_video(
         tuple[scene_detection.SceneData, int, float, list[float]]
     ] = []
 
-    # with rich_console.status("Rendering..."):
-    with concurrent.futures.ThreadPoolExecutor(multithreading_threads) as executor:
-        # results = list(
-        #     executor.map(
-        #         # compress_video_section_call, range(len(video_scenes)), video_scenes
-        #         compress_video_section_call,
-        #         [raw_video_scenes.index(x) for x in video_scenes],
-        #         video_scenes,
-        #     )
-        # )
-
-        # with progress:
-        # with Progress() as progress:
-        results_future = list(  # track(
+    with concurrent.futures.ThreadPoolExecutor(
+        video.multithreading_threads
+    ) as executor:
+        results_future = list(
             executor.submit(
                 compress_video_section_call,
                 raw_video_scenes.index(scene),
@@ -133,19 +127,17 @@ def compressing_video(
     with rich_console.status("Concatenating intermediate files"):
         ffmpeg.concatenate_video_files(
             [_temporary_video_file_names(x) for x in range(len(video_scenes))],
-            full_output_filename,
-            "ffmpeg",
+            video.full_output_filename,
         )
 
     with rich_console.status("Generating graph of data"):
         with graph_generate.LinegraphImage(
             "video_graph",
             "png",
-            f"CRF & {heuristic.NAME} - {full_input_filename} to {full_output_filename} ({codec.NAME})",
+            f"CRF & {video.heuristic.NAME} - {video.full_input_filename} to {video.full_output_filename} ({video.codec.NAME})",
             "frames",
         ) as graph_instance:
             graph_instance.add_linegraph(
-                # x_data=[x[0].start_frame for x in optimal_crf_list],
                 x_data=[
                     y
                     for x in optimal_crf_list
@@ -155,55 +147,59 @@ def compressing_video(
                 name="CRF",
                 mode="lines+markers",
                 on_left_right_side="left",
-                y_axis_range=codec.ACCEPTED_CRF_RANGE,
+                y_axis_range=video.codec.ACCEPTED_CRF_RANGE,
             )
             graph_instance.add_linegraph(
                 x_data=list(range(len([y for x in optimal_crf_list for y in x[3]]))),
                 y_data=[y for x in optimal_crf_list for y in x[3]],
-                name=f"found {heuristic.NAME}",
+                name=f"found {video.heuristic.NAME}",
                 mode="lines",
                 on_left_right_side="right",
-                y_axis_range=heuristic.RANGE,
+                y_axis_range=video.heuristic.RANGE,
             )
             graph_instance.add_linegraph(
-                # x_data=[x[0].start_frame for x in optimal_crf_list],
                 x_data=[
                     y
                     for x in optimal_crf_list
                     for y in (x[0].start_frame, x[0].end_frame)
                 ],
                 y_data=[y[2] for x in optimal_crf_list for y in (x, x)],
-                name=heuristic.NAME,
+                name=video.heuristic.NAME,
                 mode="lines+markers",
                 on_left_right_side="right",
-                y_axis_range=heuristic.RANGE,
+                y_axis_range=video.heuristic.RANGE,
             )
 
     for x in range(len(video_scenes)):
         print(_temporary_video_file_names(x))
         print(ffmpeg.get_video_metadata(_temporary_video_file_names(x)))
-        os.remove(_temporary_video_file_names(x))
+        # os.remove(_temporary_video_file_names(x))
 
-    for tempfile in [x for x in os.listdir() if x.endswith(".tempfile")]:
-        os.remove(tempfile)
-
-    # ffmpeg.get_video_metadata(full_input_filename).contains_audio and audio_commands is not None --> handled by function
     with rich_console.status("Combining audio+subtitles from source video"):
         ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
-            full_input_filename, full_output_filename, audio_commands, subtitle_commands
+            video.full_input_filename,
+            video.full_output_filename,
+            video.audio_commands,
+            video.subtitle_commands,
         )
 
-    if make_comparison_with_blend_filter:
+    if video.make_comparison_with_blend_filter:
         with rich_console.status("Making a visual comparison with blend filter"):
             ffmpeg.visual_comparison_of_video_with_blend_filter(
-                full_input_filename,
-                full_output_filename,
-                "ffmpeg",
+                video.full_input_filename,
+                video.full_output_filename,
                 "visual_comparison.mp4",
             )
 
-    print(ffmpeg.get_video_metadata(full_input_filename))
-    print(ffmpeg.get_video_metadata(full_output_filename))
+    print(ffmpeg.get_video_metadata(video.full_input_filename))
+    print(ffmpeg.get_video_metadata(video.full_output_filename))
+
+    for tempfile in [
+        x
+        for x in os.listdir()
+        if x.endswith(".tempfile") or x.startswith("cache-") or x.startswith("temp")
+    ]:
+        os.remove(tempfile)
 
 
 def _temporary_video_file_names(position: int) -> str:
@@ -215,12 +211,12 @@ def _compress_video_section(
     full_input_filename_part: str,
     input_filename_data: ffmpeg.VideoMetadata,
     full_output_filename: str,
-    codec: ffmpeg.video,
+    codec: ffmpeg.VideoCodec,
     heuristic: ffmpeg_heuristics.heuristic,
     frame_start: int,
     frame_end: int,
-    input_file_script_seeking: ffmpeg.ffms2seek,
-) -> tuple[int, float, list[float]]:  # CRF + heuristic (throughout)
+    input_file_script_seeking: ffmpeg.accurate_seek,
+) -> tuple[int, float, list[float]]:
     with ffmpeg.FfmpegCommand(
         input_filename=full_input_filename_part,
         codec_information=codec,
@@ -310,17 +306,5 @@ def _compress_video_section(
 
 if __name__ == "__main__":
     start_time = time.perf_counter()
-    compressing_video(
-        "input.mp4",
-        "output-temp.mkv",
-        ffmpeg.H264(tune="animation", preset="medium"),
-        # ffmpeg.SVTAV1(preset=6),
-        ffmpeg_heuristics.VMAF(90),
-        minimum_scene_length_seconds=4,
-        audio_commands="-c:a copy",
-        multithreading_threads=2,
-        scenes_length_sort="smallest first",
-        make_comparison_with_blend_filter=False,
-    )
     end_time = time.perf_counter()
     print(f"Total time elapsed: {end_time - start_time}")

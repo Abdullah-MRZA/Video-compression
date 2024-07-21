@@ -1,59 +1,62 @@
-# import plotly.express as px
 from types import TracebackType
 from typing import Literal
 
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import matplotlib.pyplot as plt
+
+
+# pyright: reportUnknownMemberType=false
+
+# https://matplotlib.org/stable/gallery/subplots_axes_and_figures/two_scales.html#sphx-glr-gallery-subplots-axes-and-figures-two-scales-py
 
 
 class LinegraphImage:
     def __init__(
         self,
-        filename_without_extension: str,
-        fileformat: Literal["png", "jpeg", "webp", "svg", "pdf"] = "png",
-        title_of_graph: str | None = None,
-        x_axis_name: str | None = None,
-        save_data_to_file: bool = True,
+        filename: str,
+        x_axis_name: str,
+        title_of_graph: str,
+        # save_data_to_file: bool = True,
     ) -> None:
-        self.fig = go.Figure()
-        self.fig = make_subplots(specs=[[{"secondary_y": True}]])
-        self.filename_without_extension = filename_without_extension
+        self.fig, self.ax_left = plt.subplots()
+        self.first: bool = True
+
+        self.filename = filename
         self.title_of_graph = title_of_graph
-        self.fileformat = fileformat
         self.x_axis_name = x_axis_name
-        self.save_data_to_file = save_data_to_file
 
     def __enter__(self):
         return self
 
-    def add_linegraph(
+    def add_linegraph_left(
         self,
         x_data: list[int | float],
         y_data: list[int | float],
-        name: str,
-        mode: Literal["lines", "lines+markers"],
-        on_left_right_side: Literal["left", "right"],
+        name_of_axes: str,
         y_axis_range: range,
+        colour: Literal["red", "blue"],
     ) -> None:
-        _ = self.fig.add_trace(
-            go.Scatter(
-                x=x_data,
-                y=y_data,
-                mode=mode,
-                name=name,  # , yaxis=testing_y_axis_range
-            ),
-            secondary_y=(on_left_right_side == "right"),
-        )
+        str_colour = f"tab:{colour}"
+        _ = self.ax_left.set_xlabel(self.x_axis_name)
+        _ = self.ax_left.set_ylabel(name_of_axes, color=str_colour)
+        _ = self.ax_left.set_ylim(min(y_axis_range), max(y_axis_range))
+        _ = self.ax_left.plot(x_data, y_data, color=str_colour)
+        self.ax_left.tick_params(axis="y", labelcolor=str_colour)
 
-        # changing range of y axis: https://stackoverflow.com/questions/55704058/set-the-range-of-the-y-axis-in-plotly
-        _ = self.fig.update_yaxes(
-            title_text=name,
-            secondary_y=(on_left_right_side == "right"),
-            range=[
-                min(y_axis_range),
-                max(y_axis_range),
-            ],  # check if works (ALSO CHECK IF CAN BE REPLACED WITH NONE)
-        )
+    def add_linegraph_right(
+        self,
+        x_data: list[int | float],
+        y_data: list[int | float],
+        name_of_axes: str,
+        y_axis_range: range,
+        colour: Literal["red", "blue"],
+    ) -> None:
+        ax_right = self.ax_left.twinx()
+        str_colour = f"tab:{colour}"
+
+        _ = ax_right.set_ylabel(name_of_axes, color=str_colour)
+        _ = ax_right.set_ylim(min(y_axis_range), max(y_axis_range))
+        ax_right.plot(x_data, y_data, color=str_colour)  # this works
+        ax_right.tick_params(axis="y", labelcolor=str_colour)
 
     def __exit__(
         self,
@@ -61,54 +64,17 @@ class LinegraphImage:
         exc_value: BaseException | None,
         exc_traceback: TracebackType | None,
     ) -> None:
-        _ = self.fig.update_layout(title_text=self.title_of_graph)
-
-        if self.x_axis_name is not None:
-            _ = self.fig.update_xaxes(title_text=self.x_axis_name)
-
-        if self.save_data_to_file:
-            self.fig.write_image(
-                f"{self.filename_without_extension}.{self.fileformat}", scale=3
-            )
-        else:
-            self.fig.show()
+        # self.fig.tight_layout()
+        _ = plt.title(self.title_of_graph)
+        # _ = plt.legend()
+        self.fig.set_size_inches(18.5, 10.5, forward=True)
+        plt.savefig(self.filename, dpi=100)
 
 
-# class matplotlib_graphs:
-#     def __init__(
-#         self, filename_without_extension: str, filename_extension: Literal["png", "pdf"]
-#     ) -> None:
-#         self.fig, self.ax = plt.subplots()
-#
-#     def __enter__(self):
-#         return self
-#
-#     def add_linegraph(
-#         self, x_axis_data: list[float | int], y_axis_data: list[float | int]
-#     ):
-#         self.ax.plot(x_axis_data, y_axis_data)
-#
-#     def __exit__(
-#         self,
-#         exc_type: type[BaseException] | None,
-#         exc_value: BaseException | None,
-#         exc_traceback: TracebackType | None,
-#     ) -> None:
-#         self.plt.savefig(filename_without_extension + "." + filename_extension)
-#
-#     x = np.array([1, 2, 3, 4])
-#     y = x * 2
-#
-#     # first plot with X and Y data
-#     plt.plot(x, y)
-#
-#     x1 = [2, 4, 6, 8]
-#     y1 = [3, 5, 7, 9]
-#
-#     # second plot with x1 and y1 data
-#     plt.plot(x1, y1, "-.")
-#
-#     plt.xlabel("X-axis data")
-#     plt.ylabel("Y-axis data")
-#     plt.title("multiple plots")
-#     plt.show()
+if __name__ == "__main__":
+    with LinegraphImage("TEST.png", "frames", "This is a test image") as image:
+        x = [float(x) for x in [1, 2, 3, 4]]
+        y1 = [float(x) for x in [2, 3, 4, 5]]
+        y2 = [float(x) for x in [4, 3, 2, 1]]
+        image.add_linegraph_left(x, y1, "first one", range(0, 5), "red")
+        image.add_linegraph_right(x, y2, "second one", range(-10, 10), "blue")

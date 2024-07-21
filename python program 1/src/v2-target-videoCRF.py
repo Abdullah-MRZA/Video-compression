@@ -1,8 +1,8 @@
 from typing import Literal
-from . import ffmpeg
-from . import ffmpeg_heuristics
-from . import graph_generate
-from . import scene_detection
+import ffmpeg
+import ffmpeg_heuristics
+import graph_generate
+import scene_detection
 
 from rich import print
 from rich.progress import Progress, TimeElapsedColumn, track
@@ -27,6 +27,7 @@ def compressing_video(
     full_output_filename: str,
     codec: ffmpeg.video,
     heuristic: ffmpeg_heuristics.heuristic,
+    # scene_detection_threshold: int = 27,
     minimum_scene_length_seconds: float,
     audio_commands: None | str = "-c:a copy",  # TODO: Remove None option
     subtitle_commands: None | str = "-c:s copy",
