@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from . import file_cache
-from . import ffmpeg
+import file_cache
+import ffmpeg
 import os
 import json
 import subprocess

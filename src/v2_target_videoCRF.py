@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from typing import Literal
-from . import ffmpeg
-from . import ffmpeg_heuristics
-from . import graph_generate
-from . import scene_detection
-from . import file_cache
+import ffmpeg
+import ffmpeg_heuristics
+import graph_generate
+import scene_detection
+import file_cache
 
 from rich import print
 from rich.progress import Progress, TimeElapsedColumn, track

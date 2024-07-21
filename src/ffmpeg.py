@@ -1,6 +1,6 @@
 import subprocess
-from . import file_cache
-from . import ffmpeg_heuristics
+import file_cache
+import ffmpeg_heuristics
 from textwrap import dedent
 from dataclasses import dataclass
 from typing import Literal

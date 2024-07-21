@@ -1,7 +1,7 @@
-from . import ffmpeg
-from . import v2_target_videoCRF
-from . import ffmpeg_heuristics
-from . import file_cache
+import ffmpeg
+import v2_target_videoCRF
+import ffmpeg_heuristics
+import file_cache
 
 
 def main() -> None:

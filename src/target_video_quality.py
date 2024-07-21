@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 from rich.console import Console
 from rich.progress import Progress, TimeElapsedColumn
-from . import ffmpeg
-from . import ffmpeg_heuristics
-from . import graph_generate
+import ffmpeg
+import ffmpeg_heuristics
+import graph_generate
 import os
 import subprocess
-from . import scene_detection
+import scene_detection
 import logging
 from rich.logging import RichHandler
 import time
