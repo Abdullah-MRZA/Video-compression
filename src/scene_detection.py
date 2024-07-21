@@ -46,7 +46,7 @@ def _ensure_scene_length_is_larger_than_minimum_length(
     return scene_data
 
 
-@file_cache.cache(prefix_name="SceneCache-")
+@file_cache.cache(prefix_name="SceneCache-", persistent_after_termination=True)
 def find_scenes(
     video_path: str,
     minimum_length_scene_seconds: float,

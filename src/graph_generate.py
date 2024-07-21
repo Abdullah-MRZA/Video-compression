@@ -81,7 +81,7 @@ class LinegraphImage:
         if isinstance(y_axis_range, axisRange):
             _ = ax_right.set_ylim(y_axis_range.bottom_data, y_axis_range.top_data)
         else:
-            _ = ax_right.set_ylim(max(y_axis_range), min(y_axis_range))
+            _ = ax_right.set_ylim(min(y_axis_range), max(y_axis_range))
 
         ax_right.plot(
             x_data,

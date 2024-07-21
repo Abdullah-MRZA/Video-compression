@@ -74,7 +74,7 @@ def draw_vmaf_graph(
 
     for scene_frame, output_file_name in zip(scenes_frames, output_file_names):
         vmaf_values.extend(
-            ffmpeg_heuristics.VMAF(90).throughout_video(
+            ffmpeg_heuristics.VMAF(90).throughout_video_vapoursynth(
                 input_file,
                 output_file_name,
                 "ffmpeg",
@@ -85,7 +85,7 @@ def draw_vmaf_graph(
             )
         )
 
-    vmaf_overall_end = ffmpeg_heuristics.VMAF(90).throughout_video(
+    vmaf_overall_end = ffmpeg_heuristics.VMAF(90).throughout_video_vapoursynth(
         input_file,
         OUTPUT_FILE_NAME,
         "ffmpeg",
@@ -98,7 +98,9 @@ def draw_vmaf_graph(
         ),
     )
 
-    vmaf_overall_end_withoutffms2 = ffmpeg_heuristics.VMAF(90).throughout_video(
+    vmaf_overall_end_withoutffms2 = ffmpeg_heuristics.VMAF(
+        90
+    ).throughout_video_vapoursynth(
         input_file,
         "no_ffms2.mp4",
         "ffmpeg",

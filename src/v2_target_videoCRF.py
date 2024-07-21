@@ -26,6 +26,7 @@ progress = Progress(
 class videoData:
     full_input_filename: str  # could change to Path
     full_output_filename: str
+    vapoursynth_script: str
     codec: ffmpeg.VideoCodec
     heuristic: ffmpeg_heuristics.heuristic
     minimum_scene_length_seconds: float
@@ -36,7 +37,7 @@ class videoData:
         "largest first"  # ensures that CPU always being used
     )
     crop_black_bars: bool = True
-    make_comparison_with_blend_filter: bool = True
+    make_comparison_with_blend_filter: bool = False
 
 
 def compressing_video(video: videoData) -> None:
@@ -75,7 +76,10 @@ def compressing_video(video: videoData) -> None:
         )
 
     seeking_data_input_file = ffmpeg.accurate_seek(
-        video.full_input_filename, video.full_input_filename, "ffms2", extra_commands=""
+        video.full_input_filename,
+        video.full_input_filename,
+        "ffms2",
+        extra_commands=video.vapoursynth_script,
     )
 
     optimal_crf_list: list[
@@ -144,6 +148,19 @@ def compressing_video(video: videoData) -> None:
                 colour="red",
             )
             graph_instance.add_linegraph_right(
+                y_data=(
+                    heuristic_throughout_data
+                    := video.heuristic.throughout_video_vapoursynth(
+                        seeking_data_input_file, video.full_output_filename
+                    )
+                ),
+                x_data=list(range(len(heuristic_throughout_data))),
+                name_of_axes=f"\n+ found (at end) {video.heuristic.NAME}",
+                y_axis_range=video.heuristic.RANGE,
+                marker="",
+                colour="red",
+            )
+            graph_instance.add_linegraph_right(
                 # x_data=list(range(len([y for x in optimal_crf_list for y in x[1]]))),
                 x_data=list(
                     range(
@@ -157,7 +174,7 @@ def compressing_video(video: videoData) -> None:
                     )
                 ),
                 y_data=[y for x in optimal_crf_list for y in x[1].heuristic_throughout],
-                name_of_axes=f"\nfound {video.heuristic.NAME}",
+                name_of_axes=f"\n(in section) VMAF throughout {video.heuristic.NAME}",
                 y_axis_range=video.heuristic.RANGE,
                 marker="",
                 colour="blue",
@@ -178,7 +195,7 @@ def compressing_video(video: videoData) -> None:
     for x in range(len(video_scenes)):
         print(_temporary_video_file_names(x))
         print(ffmpeg.get_video_metadata(_temporary_video_file_names(x)))
-        # os.remove(_temporary_video_file_names(x))
+        os.remove(_temporary_video_file_names(x))
 
     with rich_console.status("Combining audio+subtitles from source video"):
         ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
@@ -250,10 +267,9 @@ def _compress_video_section(
             input_file_script_seeking,
         )
 
-        current_heuristic = heuristic.summary_of_overall_video(
-            full_input_filename_part,
-            full_output_filename,
+        current_heuristic = heuristic.summary_of_overall_video_vapoursynth(
             input_file_script_seeking,
+            full_output_filename,
             source_start_end_frame=(frame_start, frame_end),
             subsample=3,
         )
@@ -289,10 +305,9 @@ def _compress_video_section(
             input_file_script_seeking,
         )
 
-    heuristic_throughout = heuristic.throughout_video(
-        full_input_filename_part,
-        full_output_filename,
+    heuristic_throughout = heuristic.throughout_video_vapoursynth(
         input_file_script_seeking,
+        full_output_filename,
         source_start_end_frame=(frame_start, frame_end),
         subsample=1,
     )

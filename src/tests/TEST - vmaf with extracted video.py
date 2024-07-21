@@ -36,7 +36,7 @@ with ffmpeg.FfmpegCommand(
 
 minimum_expected_vmaf = int(
     min(
-        ffmpeg_heuristics.VMAF(90).throughout_video(
+        ffmpeg_heuristics.VMAF(90).throughout_video_vapoursynth(
             input_file, temp_compare_file, "ffmpeg", accurate_seek, subsample=1
         )
     )
