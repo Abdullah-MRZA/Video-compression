@@ -70,21 +70,25 @@ def cache(
 
             if os.path.exists(cache_filename):
                 with cache_filename.open("rb") as f:
-                    return pickle.load(f)
+                    recieved_value_data = pickle.load(f)
+                    cache_data.append(recieved_value_data)
+                    return recieved_value_data.cache_data
 
             recieved_value = annotated_function(*args, **kwargs)
 
             cache_data.append(
-                data(cache_filename, recieved_value, not persistent_after_termination)
+                recieved_value_data := data(
+                    cache_filename, recieved_value, not persistent_after_termination
+                )
             )
 
             with cache_filename.open("wb") as f:
-                pickle.dump(recieved_value, f)
+                pickle.dump(recieved_value_data, f)
             # with open(str(cache_filename), "wb") as f:
             #     pickle.dump(recieved_value, f)
 
             print("written to cache")
-            os.system("tree")
+            # _ = os.system("tree") # (debugging)
 
             return recieved_value
 

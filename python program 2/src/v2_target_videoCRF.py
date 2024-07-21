@@ -4,6 +4,7 @@ from . import ffmpeg
 from . import ffmpeg_heuristics
 from . import graph_generate
 from . import scene_detection
+from . import file_cache
 
 from rich import print
 from rich.progress import Progress, TimeElapsedColumn, track
@@ -12,7 +13,7 @@ import os
 import time
 
 from rich.console import Console
-import pickle
+# import pickle
 
 rich_console = Console()
 progress = Progress(
@@ -77,30 +78,24 @@ def compressing_video(video: videoData) -> None:
         video.full_input_filename, video.full_input_filename, "ffms2", extra_commands=""
     )
 
+    optimal_crf_list: list[
+        tuple[scene_detection.SceneData, compress_video_section_data]
+    ] = []
+
     def compress_video_section_call(
         section: int, video_section: scene_detection.SceneData
-    ) -> tuple[int, scene_detection.SceneData, int, float, list[float]]:
-        optimal_crf, heuristic_reached, heuristic_throughout = _compress_video_section(
+    ) -> tuple[int, scene_detection.SceneData, compress_video_section_data]:
+        video_section_data = _compress_video_section(
             video.full_input_filename,
-            input_filename_data,
             _temporary_video_file_names(section),
+            input_filename_data,
             video.codec,
             video.heuristic,
             video_section.start_frame,
             video_section.end_frame,
             seeking_data_input_file,
         )
-        return (
-            section,
-            video_section,
-            optimal_crf,
-            heuristic_reached,
-            heuristic_throughout,
-        )
-
-    optimal_crf_list: list[
-        tuple[scene_detection.SceneData, int, float, list[float]]
-    ] = []
+        return (section, video_section, video_section_data)
 
     with concurrent.futures.ThreadPoolExecutor(
         video.multithreading_threads
@@ -132,42 +127,52 @@ def compressing_video(video: videoData) -> None:
 
     with rich_console.status("Generating graph of data"):
         with graph_generate.LinegraphImage(
-            "video_graph",
-            "png",
-            f"CRF & {video.heuristic.NAME} - {video.full_input_filename} to {video.full_output_filename} ({video.codec.NAME})",
-            "frames",
+            filename="video_graph",
+            x_axis_name="frames",
+            title_of_graph=f"CRF & {video.heuristic.NAME} - {video.full_input_filename} to {video.full_output_filename} ({video.codec.NAME})",
         ) as graph_instance:
-            graph_instance.add_linegraph(
+            graph_instance.add_linegraph_left(
                 x_data=[
                     y
                     for x in optimal_crf_list
                     for y in (x[0].start_frame, x[0].end_frame)
                 ],
-                y_data=[y[1] for x in optimal_crf_list for y in (x, x)],
-                name="CRF",
-                mode="lines+markers",
-                on_left_right_side="left",
+                y_data=[y[1].crf for x in optimal_crf_list for y in (x, x)],
+                name_of_axes="CRF",
                 y_axis_range=video.codec.ACCEPTED_CRF_RANGE,
+                marker="o",
+                colour="red",
             )
-            graph_instance.add_linegraph(
-                x_data=list(range(len([y for x in optimal_crf_list for y in x[3]]))),
-                y_data=[y for x in optimal_crf_list for y in x[3]],
-                name=f"found {video.heuristic.NAME}",
-                mode="lines",
-                on_left_right_side="right",
+            graph_instance.add_linegraph_right(
+                # x_data=list(range(len([y for x in optimal_crf_list for y in x[1]]))),
+                x_data=list(
+                    range(
+                        len(
+                            [
+                                y
+                                for x in optimal_crf_list
+                                for y in x[1].heuristic_throughout
+                            ]
+                        )
+                    )
+                ),
+                y_data=[y for x in optimal_crf_list for y in x[1].heuristic_throughout],
+                name_of_axes=f"\nfound {video.heuristic.NAME}",
                 y_axis_range=video.heuristic.RANGE,
+                marker="",
+                colour="blue",
             )
-            graph_instance.add_linegraph(
+            graph_instance.add_linegraph_right(
                 x_data=[
                     y
                     for x in optimal_crf_list
                     for y in (x[0].start_frame, x[0].end_frame)
                 ],
-                y_data=[y[2] for x in optimal_crf_list for y in (x, x)],
-                name=video.heuristic.NAME,
-                mode="lines+markers",
-                on_left_right_side="right",
+                y_data=[y[1].heuristic for x in optimal_crf_list for y in (x, x)],
+                name_of_axes=video.heuristic.NAME,
                 y_axis_range=video.heuristic.RANGE,
+                marker="x",
+                colour="blue",
             )
 
     for x in range(len(video_scenes)):
@@ -194,114 +199,105 @@ def compressing_video(video: videoData) -> None:
     print(ffmpeg.get_video_metadata(video.full_input_filename))
     print(ffmpeg.get_video_metadata(video.full_output_filename))
 
-    for tempfile in [
-        x
-        for x in os.listdir()
-        if x.endswith(".tempfile") or x.startswith("cache-") or x.startswith("temp")
-    ]:
-        os.remove(tempfile)
-
 
 def _temporary_video_file_names(position: int) -> str:
     # , extension: str = "mkv"
     return f"temp-{position}.mkv"
 
 
+@dataclass()
+class compress_video_section_data:
+    crf: int
+    heuristic: float
+    heuristic_throughout: list[float]
+
+
+@file_cache.cache()
 def _compress_video_section(
     full_input_filename_part: str,
-    input_filename_data: ffmpeg.VideoMetadata,
     full_output_filename: str,
+    input_filename_data: ffmpeg.VideoMetadata,
     codec: ffmpeg.VideoCodec,
     heuristic: ffmpeg_heuristics.heuristic,
     frame_start: int,
     frame_end: int,
     input_file_script_seeking: ffmpeg.accurate_seek,
-) -> tuple[int, float, list[float]]:
-    with ffmpeg.FfmpegCommand(
-        input_filename=full_input_filename_part,
-        codec_information=codec,
-        start_frame=frame_start,
-        end_frame=frame_end,
-        output_filename=full_output_filename,
-        ffmpeg_path="ffmpeg",
-        crop_black_bars_size=None,
-        keyframe_placement=300,
-        input_file_script_seeking=input_file_script_seeking,
-    ) as video_command:
-        bottom_crf_value = min(codec.ACCEPTED_CRF_RANGE)
-        top_crf_value = max(codec.ACCEPTED_CRF_RANGE)
+) -> compress_video_section_data:
+    bottom_crf_value = min(codec.ACCEPTED_CRF_RANGE)
+    top_crf_value = max(codec.ACCEPTED_CRF_RANGE)
 
-        all_heuristic_crf_values: dict[int, float] = {}
+    all_heuristic_crf_values: dict[int, float] = {}
 
-        current_crf = None
-        if not os.path.exists(
-            f"{full_input_filename_part}-{frame_start}-{frame_end}-{codec}.tempfile"
-        ):
-            while (
-                current_crf := (top_crf_value + bottom_crf_value) // 2
-            ) not in all_heuristic_crf_values.keys():
-                # Will pause execution
-                # In case of needing to pause
-                while os.path.isfile("STOP.txt"):
-                    time.sleep(1)
+    # if not os.path.exists(
+    #     f"{full_input_filename_part}-{frame_start}-{frame_end}-{codec}.tempfile"
+    # ):
 
-                video_command.run_ffmpeg_command(current_crf)
+    while (
+        current_crf := (top_crf_value + bottom_crf_value) // 2
+    ) not in all_heuristic_crf_values.keys():
+        while os.path.isfile("STOP.txt"):
+            time.sleep(1)
 
-                current_heuristic = heuristic.summary_of_overall_video(
-                    full_input_filename_part,
-                    full_output_filename,
-                    "ffmpeg",
-                    input_file_script_seeking,
-                    source_start_end_frame=(frame_start, frame_end),
-                    subsample=3,
-                )
-
-                print(current_heuristic)
-
-                all_heuristic_crf_values.update({current_crf: current_heuristic})
-
-                if round(current_heuristic) == heuristic.target_score:
-                    print(f"Exact match (of {heuristic.NAME} heuristic)")
-                    break
-                elif current_heuristic > heuristic.target_score:
-                    bottom_crf_value = current_crf
-                elif current_heuristic < heuristic.target_score:
-                    top_crf_value = current_crf
-        else:
-            print("Using data from crash temp file")
-            with open(
-                f"{full_input_filename_part}-{frame_start}-{frame_end}-{codec}.tempfile",
-                "rb",
-            ) as file:
-                all_heuristic_crf_values = pickle.load(file)
-
-        closest_value = min(
-            (abs(x[1] - heuristic.target_score), x)
-            for x in all_heuristic_crf_values.items()
-        )[1]
-
-        if current_crf is not None and current_crf != closest_value[0]:
-            print("DIFFERENCE -> current_crf != closest_value !!!")
-            video_command.run_ffmpeg_command(closest_value[0])
-
-        heuristic_throughout = heuristic.throughout_video(
+        ffmpeg.run_ffmpeg_command(
+            current_crf,
             full_input_filename_part,
             full_output_filename,
-            "ffmpeg",
+            codec,
+            frame_start,
+            frame_end,
+            True,
+            300,
             input_file_script_seeking,
-            source_start_end_frame=(frame_start, frame_end),
-            subsample=1,
         )
 
-        with open(
-            f"{full_input_filename_part}-{frame_start}-{frame_end}-{codec}.tempfile",
-            "wb",
-        ) as file:
-            pickle.dump(all_heuristic_crf_values, file)
+        current_heuristic = heuristic.summary_of_overall_video(
+            full_input_filename_part,
+            full_output_filename,
+            input_file_script_seeking,
+            source_start_end_frame=(frame_start, frame_end),
+            subsample=3,
+        )
 
-        print("done writing the backup data")
+        print(current_heuristic)
 
-        return *closest_value, heuristic_throughout
+        all_heuristic_crf_values.update({current_crf: current_heuristic})
+
+        if round(current_heuristic) == heuristic.target_score:
+            print(f"Exact match (of {heuristic.NAME} heuristic)")
+            break
+        elif current_heuristic > heuristic.target_score:
+            bottom_crf_value = current_crf
+        elif current_heuristic < heuristic.target_score:
+            top_crf_value = current_crf
+
+    closest_value = min(
+        (abs(x[1] - heuristic.target_score), x)
+        for x in all_heuristic_crf_values.items()
+    )[1]
+
+    if current_crf != closest_value[0]:
+        print("DIFFERENCE -> current_crf != closest_value !!!")
+        ffmpeg.run_ffmpeg_command(
+            closest_value[0],
+            full_input_filename_part,
+            full_output_filename,
+            codec,
+            frame_start,
+            frame_end,
+            True,
+            300,
+            input_file_script_seeking,
+        )
+
+    heuristic_throughout = heuristic.throughout_video(
+        full_input_filename_part,
+        full_output_filename,
+        input_file_script_seeking,
+        source_start_end_frame=(frame_start, frame_end),
+        subsample=1,
+    )
+
+    return compress_video_section_data(*closest_value, heuristic_throughout)
 
 
 if __name__ == "__main__":

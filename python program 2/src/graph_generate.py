@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from types import TracebackType
 from typing import Literal
 
@@ -8,6 +9,13 @@ import matplotlib.pyplot as plt
 
 # https://matplotlib.org/stable/gallery/subplots_axes_and_figures/two_scales.html#sphx-glr-gallery-subplots-axes-and-figures-two-scales-py
 # https://stackoverflow.com/questions/8409095/set-markers-for-individual-points-on-a-line
+
+
+@dataclass
+class axisRange:
+    # this is because this is possible: bottom_data > top_data
+    bottom_data: float
+    top_data: float
 
 
 class LinegraphImage:
@@ -33,7 +41,7 @@ class LinegraphImage:
         x_data: list[int | float],
         y_data: list[int | float],
         name_of_axes: str,
-        y_axis_range: range,
+        y_axis_range: axisRange | range,
         marker: Literal["x", "o", ""],
         colour: Literal["red", "blue"],
     ) -> None:
@@ -41,7 +49,12 @@ class LinegraphImage:
 
         _ = self.ax_left.set_xlabel(self.x_axis_name)
         _ = self.ax_left.set_ylabel(name_of_axes, color=str_colour)
-        _ = self.ax_left.set_ylim(min(y_axis_range), max(y_axis_range))
+
+        if isinstance(y_axis_range, axisRange):
+            _ = self.ax_left.set_ylim(y_axis_range.bottom_data, y_axis_range.top_data)
+        else:
+            _ = self.ax_left.set_ylim(min(y_axis_range), max(y_axis_range))
+
         _ = self.ax_left.plot(
             x_data,
             y_data,
@@ -56,7 +69,7 @@ class LinegraphImage:
         x_data: list[int | float],
         y_data: list[int | float],
         name_of_axes: str,
-        y_axis_range: range,
+        y_axis_range: axisRange | range,
         marker: Literal["x", "o", ""],
         colour: Literal["red", "blue"],
     ) -> None:
@@ -64,7 +77,12 @@ class LinegraphImage:
         str_colour = f"tab:{colour}"
 
         _ = ax_right.set_ylabel(name_of_axes, color=str_colour)
-        _ = ax_right.set_ylim(min(y_axis_range), max(y_axis_range))
+
+        if isinstance(y_axis_range, axisRange):
+            _ = ax_right.set_ylim(y_axis_range.bottom_data, y_axis_range.top_data)
+        else:
+            _ = ax_right.set_ylim(max(y_axis_range), min(y_axis_range))
+
         ax_right.plot(
             x_data,
             y_data,
@@ -96,6 +114,6 @@ if __name__ == "__main__":
         y1 = [float(x) for x in [2, 3, 4, 5]]
         y2 = [float(x) for x in [4, 3, 2, 1]]
         y3 = [float(x) for x in [5, 4, 3, 2]]
-        image.add_linegraph_left(x, y1, "first one", range(0, 5), "x", "red")
+        image.add_linegraph_left(x, y1, "first one", axisRange(5, -0), "x", "red")
         image.add_linegraph_right(x, y2, "second one", range(-10, 10), "o", "blue")
-        image.add_linegraph_right(x, y3, "\nthird one", range(-10, 10), "o", "red")
+        image.add_linegraph_right(x, y3, "\nthird one", axisRange(-10, 10), "o", "red")
