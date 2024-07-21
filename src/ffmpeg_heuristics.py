@@ -47,6 +47,12 @@ class VMAF:
     ) -> float:
         print("Running FFMPEG COMMAND for vmaf")
 
+        # value = VMAF(90).throughout_video_vapoursynth(
+        #     vapoursynth_accurate_seek, encoded_video_path, source_start_end_frame
+        # )
+        # return sum(value) / len(value)
+        # return min(value)
+
         frame_rate = ffmpeg.get_video_metadata(encoded_video_path).frame_rate
 
         ffmpeg_command: list[str] = []
@@ -243,9 +249,12 @@ class VMAF:
 #     ) -> int: ...
 
 
-def crop_black_bars_size(source_video_path: str) -> str:
+def crop_black_bars_size(source_video_path: ffmpeg.accurate_seek) -> str:
+    source_video_path_data = ffmpeg.get_video_metadata(source_video_path)
     ffmpeg_output = subprocess.getoutput(
-        f'ffmpeg -i "{source_video_path}" -t 10 -vf cropdetect -f null -'
+        # f'ffmpeg -i "{source_video_path}" -t 10 -vf cropdetect -f null -'
+        source_video_path.command(None, round(source_video_path_data.frame_rate * 20))
+        + "ffmpeg -i - -vf cropdetect -f null -"
     )
     data = [x for x in ffmpeg_output.splitlines() if "crop=" in x][-1]
 

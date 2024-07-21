@@ -33,6 +33,7 @@ class SVTAV1:
 
     ACCEPTED_CRF_RANGE: range = range(0, 63 + 1, 1)
     NAME = "SVTAV1"
+    BETTER_QUALITY = -1
 
     def to_subprocess_command(self, crf: int) -> list[str]:
         command = [
@@ -58,6 +59,7 @@ class SVTAV1:
 class H264:
     ACCEPTED_CRF_RANGE: range = range(0, 51 + 1, 1)
     NAME = "H264"
+    BETTER_QUALITY = -1
 
     preset: Literal[
         "ultrafast",
@@ -125,6 +127,7 @@ class H264:
 class H265:
     ACCEPTED_CRF_RANGE: range = range(0, 51 + 1, 1)
     NAME = "H265"
+    BETTER_QUALITY = -1
 
     preset: Literal[
         "ultrafast",
@@ -178,6 +181,7 @@ class APPLE_HWENC_H265:
     # ACCEPTED_CRF_RANGE: range = range(0, 100 + 1, 1)
     ACCEPTED_CRF_RANGE: range = range(-100, 0 + 1, 1)
     NAME = "APPLE HWENC H265"
+    BETTER_QUALITY = 1
 
     bitdepth: Literal[
         "videotoolbox_vld",
@@ -232,7 +236,7 @@ class accurate_seek:
             else ""
         )
         end = f"-e {end_frame - 1}" if end_frame is not None else ""
-        return f"vspipe {start} {end} -c y4m {self.filename_of_vpy} - |"
+        return f"vspipe {start} {end} -c y4m {self.filename_of_vpy} - | "
 
     def __exit__(self):
         try:
@@ -253,13 +257,12 @@ def run_ffmpeg_command(
     end_frame: int,
     crop_black_bars: bool,
     keyframe_placement: int | None,
-    input_file_script_seeking: accurate_seek | None,
+    input_file_script_seeking: accurate_seek,
 ) -> None:
-    framerate: float = get_video_metadata(input_filename).frame_rate
+    framerate: float = get_video_metadata(input_file_script_seeking).frame_rate
     command: list[str] = []
 
-    if input_file_script_seeking is not None:
-        command.append(input_file_script_seeking.command(start_frame, end_frame))
+    command.append(input_file_script_seeking.command(start_frame, end_frame))
 
     command.extend(
         [
@@ -268,29 +271,22 @@ def run_ffmpeg_command(
         ]
     )
 
-    if input_file_script_seeking is not None:
-        command.append("-i -")
-    else:
-        command.append(f"-i {input_filename}")
+    command.append("-i -")
 
     command.extend(
         [
             *codec_information.to_subprocess_command(crf_value),
             "-an",
             "-y",
-            codec_information.output_file(output_filename),
         ]
     )
-
-    # if crop_black_bars:
-    #     command.insert(
-    #         -1, f"-vf {ffmpeg_heuristics.crop_black_bars_size(input_filename)}"
-    #     )
 
     if keyframe_placement is not None:
         command.insert(-1, f"-g {keyframe_placement}")
 
-    print(" ".join(command))
+    command.append(codec_information.output_file(output_filename))
+
+    print("FFMPEG COMMAND --> " + " ".join(command))
     _ = subprocess.run(" ".join(command), shell=True, check=True)
 
 
@@ -337,41 +333,60 @@ class VideoMetadata:
     # other data
     contains_audio: bool
     file_size: int
-    bitrate: int
+    # bitrate: int
     # is_HDR: bool
 
 
 @file_cache.cache()
 def get_video_metadata(
-    filename: str,
+    # filename: str,
+    input_file_vapoursynth: accurate_seek | str,
 ) -> VideoMetadata:
-    def make_video_metadata(json_data: dict) -> VideoMetadata:
-        # BUG: first (0) stream may not be video...
+    def make_video_metadata(json_data: dict[str, dict]) -> VideoMetadata:
+        first_stream_with_video: dict[str, str | int] = [
+            x for x in json_data["streams"] if x["codec_type"] == "video"
+        ][0]
+
+        # from rich import print
+        #
+        # print(first_stream_with_video)
+
+        try:
+            duration = float(json_data["format"]["duration"])
+        except Exception:
+            duration = float(first_stream_with_video["duration"])
+
         return VideoMetadata(
             file_name=json_data["format"]["filename"],  # same as `filename`...
-            width=int(json_data["streams"][0]["width"]),
-            height=int(json_data["streams"][0]["height"]),
-            frame_rate=float(eval(json_data["streams"][0]["r_frame_rate"])),
-            total_frames=int(json_data["streams"][0]["nb_read_frames"]),
-            pix_fmt=json_data["streams"][0]["pix_fmt"],
-            codec=json_data["streams"][0]["codec_name"],
+            width=int(first_stream_with_video["width"]),
+            height=int(first_stream_with_video["height"]),
+            frame_rate=float(eval(first_stream_with_video["r_frame_rate"])),
+            total_frames=int(first_stream_with_video["nb_read_frames"]),
+            pix_fmt=first_stream_with_video["pix_fmt"],
+            codec=first_stream_with_video["codec_name"],
             start_time=float(json_data["format"]["start_time"]),
-            duration=float(json_data["format"]["duration"]),
+            # duration=float(json_data["format"]["duration"]),
+            # duration=float(first_stream_with_video["duration"]),
+            duration=duration,
             contains_audio=any(
                 True for x in json_data["streams"] if x["codec_type"] == "audio"
             ),
             file_size=int(json_data["format"]["size"]),
-            bitrate=int(json_data["format"]["bit_rate"]),
+            # bitrate=int(json_data["format"]["bit_rate"]),
         )
 
     data = subprocess.run(
-        f'ffprobe -v quiet -print_format json -show_format -show_streams -count_frames "{filename}"',
+        f'ffprobe -v quiet -print_format json -show_format -show_streams -count_frames "{input_file_vapoursynth}"'
+        if isinstance(input_file_vapoursynth, str)
+        else f"{input_file_vapoursynth.command(None, None)} ffprobe -v quiet -print_format json -show_format -show_streams -count_frames -",
         check=True,
         shell=True,
         capture_output=True,
     ).stdout.decode()
 
     json_data: dict = json.loads(data)
+    # print("json data")
+    # print(json_data)
 
     return make_video_metadata(json_data)
 
@@ -519,7 +534,7 @@ def get_video_metadata(
 
 
 def visual_comparison_of_video_with_blend_filter(
-    source_video_path: str,
+    source_video_path_vapoursynth: accurate_seek,
     encoded_video_path: str,
     output_filename_with_extension: str,
     # source_start_end_frame: None | tuple[int, int] = None,
@@ -532,9 +547,13 @@ def visual_comparison_of_video_with_blend_filter(
     -c:v libx264 -crf 18 -c:a copy output.mkv
     """
     print("RUNNING visual_comparison_of_video_with_blend_filter")
-    ffmpeg_command: list[str] = [f"ffmpeg -hide_banner -loglevel error "]
+    ffmpeg_command: list[str] = [
+        source_video_path_vapoursynth.command(None, None),
+        "ffmpeg -hide_banner -loglevel error ",
+    ]
     ffmpeg_command.extend(["-i", encoded_video_path])
-    ffmpeg_command.extend(["-i", source_video_path])
+    # ffmpeg_command.extend(["-i", source_video_path])
+    ffmpeg_command.extend(["-i", "-"])
     ffmpeg_command.append(
         "-filter_complex '[0:v]setpts=PTS-STARTPTS[first];[1:v]setpts=PTS-STARTPTS[second];[first][second]blend=all_mode=difference'"
     )

@@ -7,19 +7,20 @@ import file_cache
 def main() -> None:
     v2_target_videoCRF.compressing_video(
         v2_target_videoCRF.videoData(
-            "small.mp4",
-            "output-temp.mkv",
+            "medium.mp4",
+            "OUTPUT-TEMP.mkv",
+            # "clip = clip[::2]",
             "",
             # ffmpeg.APPLE_HWENC_H265(bitdepth="yuv420p"),
             # ffmpeg.H265(preset="medium"),
             ffmpeg.H264(preset="fast"),
             # ffmpeg.SVTAV1(preset=6),
             ffmpeg_heuristics.VMAF(90),
-            minimum_scene_length_seconds=3,
+            minimum_scene_length_seconds=4,
             audio_commands="-c:a copy",
-            multithreading_threads=5,
-            scenes_length_sort="chronological",
-            make_comparison_with_blend_filter=False,
+            multithreading_threads=4,
+            scenes_length_sort="smallest first",
+            make_comparison_with_blend_filter=False,  # fix
         )
     )
 

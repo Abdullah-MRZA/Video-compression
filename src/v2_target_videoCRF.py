@@ -155,25 +155,18 @@ def compressing_video(video: videoData) -> None:
                     )
                 ),
                 x_data=list(range(len(heuristic_throughout_data))),
-                name_of_axes=f"\n+ found (at end) {video.heuristic.NAME}",
+                name_of_axes=f"\n\n+ found (at end) {video.heuristic.NAME}",
                 y_axis_range=video.heuristic.RANGE,
                 marker="",
                 colour="red",
             )
             graph_instance.add_linegraph_right(
-                # x_data=list(range(len([y for x in optimal_crf_list for y in x[1]]))),
-                x_data=list(
-                    range(
-                        len(
-                            [
-                                y
-                                for x in optimal_crf_list
-                                for y in x[1].heuristic_throughout
-                            ]
-                        )
-                    )
+                y_data=(
+                    y_data_values := [
+                        y for x in optimal_crf_list for y in x[1].heuristic_throughout
+                    ]
                 ),
-                y_data=[y for x in optimal_crf_list for y in x[1].heuristic_throughout],
+                x_data=list(range(len(y_data_values))),
                 name_of_axes=f"\n(in section) VMAF throughout {video.heuristic.NAME}",
                 y_axis_range=video.heuristic.RANGE,
                 marker="",
@@ -208,10 +201,12 @@ def compressing_video(video: videoData) -> None:
     if video.make_comparison_with_blend_filter:
         with rich_console.status("Making a visual comparison with blend filter"):
             ffmpeg.visual_comparison_of_video_with_blend_filter(
-                video.full_input_filename,
+                seeking_data_input_file,
                 video.full_output_filename,
                 "visual_comparison.mp4",
             )
+
+    print(optimal_crf_list)
 
     print(ffmpeg.get_video_metadata(video.full_input_filename))
     print(ffmpeg.get_video_metadata(video.full_output_filename))
@@ -238,7 +233,7 @@ def _compress_video_section(
     heuristic: ffmpeg_heuristics.heuristic,
     frame_start: int,
     frame_end: int,
-    input_file_script_seeking: ffmpeg.accurate_seek,
+    input_file_vapoursynth_seeking: ffmpeg.accurate_seek,
 ) -> compress_video_section_data:
     bottom_crf_value = min(codec.ACCEPTED_CRF_RANGE)
     top_crf_value = max(codec.ACCEPTED_CRF_RANGE)
@@ -264,21 +259,22 @@ def _compress_video_section(
             frame_end,
             True,
             300,
-            input_file_script_seeking,
+            input_file_vapoursynth_seeking,
         )
 
         current_heuristic = heuristic.summary_of_overall_video_vapoursynth(
-            input_file_script_seeking,
+            input_file_vapoursynth_seeking,
             full_output_filename,
             source_start_end_frame=(frame_start, frame_end),
-            subsample=3,
+            subsample=2,
         )
 
         print(current_heuristic)
 
         all_heuristic_crf_values.update({current_crf: current_heuristic})
 
-        if round(current_heuristic) == heuristic.target_score:
+        # if round(current_heuristic) == heuristic.target_score:
+        if abs(current_heuristic - heuristic.target_score) <= 0:
             print(f"Exact match (of {heuristic.NAME} heuristic)")
             break
         elif current_heuristic > heuristic.target_score:
@@ -286,13 +282,16 @@ def _compress_video_section(
         elif current_heuristic < heuristic.target_score:
             top_crf_value = current_crf
 
-    closest_value = min(
-        (abs(x[1] - heuristic.target_score), x)
-        for x in all_heuristic_crf_values.items()
-    )[1]
+        # _ = input()
 
+    closest_value = min(
+        all_heuristic_crf_values.items(),
+        key=lambda x: abs(x[1] - heuristic.target_score),
+    )
+
+    print(f"Closest value: {closest_value}")
     if current_crf != closest_value[0]:
-        print("DIFFERENCE -> current_crf != closest_value !!!")
+        print("DIFFERENCE IN FINAL AND BEST CRF")
         ffmpeg.run_ffmpeg_command(
             closest_value[0],
             full_input_filename_part,
@@ -302,11 +301,11 @@ def _compress_video_section(
             frame_end,
             True,
             300,
-            input_file_script_seeking,
+            input_file_vapoursynth_seeking,
         )
 
     heuristic_throughout = heuristic.throughout_video_vapoursynth(
-        input_file_script_seeking,
+        input_file_vapoursynth_seeking,
         full_output_filename,
         source_start_end_frame=(frame_start, frame_end),
         subsample=1,

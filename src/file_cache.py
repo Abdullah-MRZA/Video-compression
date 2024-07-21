@@ -63,16 +63,16 @@ def cache(
                 / f"{prefix_name}cache-{function_signature_unique}.{extension}"
             )
 
-            if matching_data := [
-                x for x in cache_data if x.cache_filename.name == cache_filename.name
-            ]:
-                return matching_data[0].cache_data
-
-            if os.path.exists(cache_filename):
-                with cache_filename.open("rb") as f:
-                    recieved_value_data = pickle.load(f)
-                    cache_data.append(recieved_value_data)
-                    return recieved_value_data.cache_data
+            # if matching_data := [
+            #     x for x in cache_data if x.cache_filename.name == cache_filename.name
+            # ]:
+            #     return matching_data[0].cache_data
+            #
+            # if os.path.exists(cache_filename):
+            #     with cache_filename.open("rb") as f:
+            #         recieved_value_data = pickle.load(f)
+            #         cache_data.append(recieved_value_data)
+            #         return recieved_value_data.cache_data
 
             recieved_value = annotated_function(*args, **kwargs)
 
