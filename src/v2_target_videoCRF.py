@@ -45,15 +45,33 @@ def compressing_video(video: videoData) -> None:
         video.full_input_filename
     ), f"CRITICAL ERROR: {video.full_input_filename} Does Not Exist!!"
 
+    if video.crop_black_bars:
+        video.vapoursynth_script += f"\nclip = core.std.CropAbs(clip, {ffmpeg_heuristics.crop_black_bars_size(video.full_input_filename).split("=")[-1].replace(":",",")})\n"
+
+    seeking_data_input_file = ffmpeg.accurate_seek(
+        video.full_input_filename,
+        video.full_input_filename,
+        "ffms2",
+        extra_commands=video.vapoursynth_script,
+    )
+
     with rich_console.status(
         f"Getting metadata of input file ({video.full_input_filename})"
     ):
-        input_filename_data = ffmpeg.get_video_metadata(video.full_input_filename)
+        input_filename_data = ffmpeg.get_video_metadata(seeking_data_input_file)
+        print(input_filename_data)
 
     with rich_console.status("Calculating scenes"):
         raw_video_scenes = scene_detection.find_scenes(
             video.full_input_filename, video.minimum_scene_length_seconds
         )
+        scale_factor = raw_video_scenes[-1].end_frame / input_filename_data.total_frames
+        raw_video_scenes = [
+            scene_detection.SceneData(
+                int(x.start_frame / scale_factor), int(x.end_frame / scale_factor)
+            )
+            for x in raw_video_scenes
+        ]
         print(raw_video_scenes)
         match video.scenes_length_sort:
             case "smallest first":
@@ -74,13 +92,6 @@ def compressing_video(video: videoData) -> None:
         print(
             f"scene durations (seconds): {[round(scene_detection.scene_len_seconds(x, input_filename_data.frame_rate), 2) for x in video_scenes]}"
         )
-
-    seeking_data_input_file = ffmpeg.accurate_seek(
-        video.full_input_filename,
-        video.full_input_filename,
-        "ffms2",
-        extra_commands=video.vapoursynth_script,
-    )
 
     optimal_crf_list: list[
         tuple[scene_detection.SceneData, compress_video_section_data]
@@ -155,10 +166,10 @@ def compressing_video(video: videoData) -> None:
                     )
                 ),
                 x_data=list(range(len(heuristic_throughout_data))),
-                name_of_axes=f"\n\n+ found (at end) {video.heuristic.NAME}",
+                name_of_axes=f"\n\n+ found overall (at the end) {video.heuristic.NAME}",
                 y_axis_range=video.heuristic.RANGE,
                 marker="",
-                colour="red",
+                colour="orange",
             )
             graph_instance.add_linegraph_right(
                 y_data=(
@@ -167,10 +178,10 @@ def compressing_video(video: videoData) -> None:
                     ]
                 ),
                 x_data=list(range(len(y_data_values))),
-                name_of_axes=f"\n(in section) VMAF throughout {video.heuristic.NAME}",
+                name_of_axes=f"\n(in section) target {video.heuristic.NAME} throughout",
                 y_axis_range=video.heuristic.RANGE,
                 marker="",
-                colour="blue",
+                colour="cyan",
             )
             graph_instance.add_linegraph_right(
                 x_data=[
@@ -179,7 +190,7 @@ def compressing_video(video: videoData) -> None:
                     for y in (x[0].start_frame, x[0].end_frame)
                 ],
                 y_data=[y[1].heuristic for x in optimal_crf_list for y in (x, x)],
-                name_of_axes=video.heuristic.NAME,
+                name_of_axes=f"target {video.heuristic.NAME}",
                 y_axis_range=video.heuristic.RANGE,
                 marker="x",
                 colour="blue",
@@ -257,7 +268,7 @@ def _compress_video_section(
             codec,
             frame_start,
             frame_end,
-            True,
+            # True,
             300,
             input_file_vapoursynth_seeking,
         )
@@ -265,6 +276,7 @@ def _compress_video_section(
         current_heuristic = heuristic.summary_of_overall_video_vapoursynth(
             input_file_vapoursynth_seeking,
             full_output_filename,
+            # True,
             source_start_end_frame=(frame_start, frame_end),
             subsample=2,
         )
@@ -299,7 +311,7 @@ def _compress_video_section(
             codec,
             frame_start,
             frame_end,
-            True,
+            # True,
             300,
             input_file_vapoursynth_seeking,
         )
@@ -307,6 +319,7 @@ def _compress_video_section(
     heuristic_throughout = heuristic.throughout_video_vapoursynth(
         input_file_vapoursynth_seeking,
         full_output_filename,
+        # True,
         source_start_end_frame=(frame_start, frame_end),
         subsample=1,
     )

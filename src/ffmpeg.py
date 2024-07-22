@@ -15,7 +15,47 @@ from types import TracebackType
 _ = install(show_locals=True)
 
 
-type VideoCodec = SVTAV1 | H264 | H265 | APPLE_HWENC_H265
+# type VideoCodec = SVTAV1 | H264 | H265 | APPLE_HWENC_H265
+type VideoCodec = SVTAV1 | H264 | H265
+
+
+@dataclass()
+class SVTAV1PSY:
+    preset: int = 8
+    tune: Literal["2", "3"] = "2"
+
+    @dataclass()
+    class Filmgrain:
+        film_grain: int
+        film_grain_denoise: bool
+
+    film_grain: None | Filmgrain = None
+    bitdepth: Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
+
+    ACCEPTED_CRF_RANGE: range = range(0, 63 + 1, 1)
+    NAME = "SVTAV1-PSY"
+    BETTER_QUALITY = -1
+
+    # BUG: TODO complete these functions
+    def to_subprocess_command(self, crf: int) -> list[str]:
+        command = [
+            "-c:v libsvtav1",
+            f"-preset {self.preset}",
+            f"-pix_fmt {self.bitdepth}",
+            f"-crf {crf}",
+        ]
+
+        if self.film_grain is not None:
+            command.append(f"-svtav1-params film-grain={self.film_grain.film_grain}")
+            command.append(f"film-grain-denoise={self.film_grain.film_grain_denoise}")
+
+        command.append(f"-svtav1-params tune={["subjective", "PSNR"].index(self.tune)}")
+
+        return command
+
+    # TODO: pipe into standalone encoder
+    def output_file(self, output_filename: str) -> str:
+        return f'"{output_filename}"'
 
 
 @dataclass()
@@ -177,7 +217,7 @@ class H265:
 
 
 @dataclass()
-class APPLE_HWENC_H265:
+class APPLE_HWENC_H265:  # BUG: Faulty concatenation of video files --> unusable
     # ACCEPTED_CRF_RANGE: range = range(0, 100 + 1, 1)
     ACCEPTED_CRF_RANGE: range = range(-100, 0 + 1, 1)
     NAME = "APPLE HWENC H265"
@@ -255,7 +295,7 @@ def run_ffmpeg_command(
     codec_information: VideoCodec,
     start_frame: int,
     end_frame: int,
-    crop_black_bars: bool,
+    # crop_black_bars: bool,
     keyframe_placement: int | None,
     input_file_script_seeking: accurate_seek,
 ) -> None:
@@ -266,7 +306,8 @@ def run_ffmpeg_command(
 
     command.extend(
         [
-            "ffmpeg -hide_banner -loglevel error",
+            "ffmpeg",
+            "-hide_banner -loglevel error",
             f"-r {framerate}",
         ]
     )
@@ -281,8 +322,15 @@ def run_ffmpeg_command(
         ]
     )
 
+    # if crop_black_bars:
+    #     import ffmpeg_heuristics
+    #
+    #     size = ffmpeg_heuristics.crop_black_bars_size(input_file_script_seeking)
+    #     command.append(f"-vf {size}")
+
     if keyframe_placement is not None:
-        command.insert(-1, f"-g {keyframe_placement}")
+        # command.insert(-1, f"-g {keyframe_placement}")
+        command.append(f"-g {keyframe_placement}")
 
     command.append(codec_information.output_file(output_filename))
 

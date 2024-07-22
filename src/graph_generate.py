@@ -10,6 +10,10 @@ import matplotlib.pyplot as plt
 # https://matplotlib.org/stable/gallery/subplots_axes_and_figures/two_scales.html#sphx-glr-gallery-subplots-axes-and-figures-two-scales-py
 # https://stackoverflow.com/questions/8409095/set-markers-for-individual-points-on-a-line
 
+type colours = Literal[
+    "red", "blue", "orange", "green", "purple", "brown", "pink", "gray", "olive", "cyan"
+]
+
 
 @dataclass
 class axisRange:
@@ -43,7 +47,7 @@ class LinegraphImage:
         name_of_axes: str,
         y_axis_range: axisRange | range,
         marker: Literal["x", "o", ""],
-        colour: Literal["red", "blue"],
+        colour: colours,
     ) -> None:
         str_colour = f"tab:{colour}"
 
@@ -71,7 +75,7 @@ class LinegraphImage:
         name_of_axes: str,
         y_axis_range: axisRange | range,
         marker: Literal["x", "o", ""],
-        colour: Literal["red", "blue"],
+        colour: colours,
     ) -> None:
         ax_right = self.ax_left.twinx()
         str_colour = f"tab:{colour}"

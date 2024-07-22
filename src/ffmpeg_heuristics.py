@@ -35,12 +35,13 @@ class VMAF:
     RANGE: range = range(0, 100 + 1)
     IMPROVING_DIRECTION = +1
 
-    @file_cache.cache()
+    # @file_cache.cache()
     def summary_of_overall_video_vapoursynth(
         self,
         # source_video: str,
         vapoursynth_accurate_seek: ffmpeg.accurate_seek,
         encoded_video_path: str,  # | None
+        # resize_input_black_bars: bool,
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
@@ -54,6 +55,7 @@ class VMAF:
         # return min(value)
 
         frame_rate = ffmpeg.get_video_metadata(encoded_video_path).frame_rate
+        # source_data = ffmpeg.get_video_metadata(vapoursynth_accurate_seek)
 
         ffmpeg_command: list[str] = []
 
@@ -79,6 +81,12 @@ class VMAF:
 
         # https://www.bannerbear.com/blog/how-to-trim-a-video-using-ffmpeg/#:~:text=You%20can%20trim%20the%20input%20video%20to%20a%20specific%20duration,the%20beginning%20of%20the%20video.&text=In%20the%20command%20above%2C%20%2Dvf,the%20duration%20to%203%20seconds.
         # https://stackoverflow.com/questions/67598772/right-way-to-use-vmaf-with-ffmpeg
+
+        # [reference]scale=1920:1080
+        # scale = ""
+        # if resize_input_black_bars:
+        #     scale = crop_black_bars_size(vapoursynth_accurate_seek)
+        #     scale = f"[reference]{scale};"
 
         ffmpeg_command.extend(
             [
@@ -110,12 +118,13 @@ class VMAF:
             [x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]
         )
 
-    @file_cache.cache()
+    # @file_cache.cache()
     def throughout_video_vapoursynth(
         self,
         # source_video_path: str,
         vapoursynth_accurate_seek: ffmpeg.accurate_seek,
         encoded_video_path: str,  # | None,
+        # resize_input_black_bars: bool,
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         # encode_start_end_frame: None | tuple[int, int] = None,
         threads_to_use: int = 6,
@@ -152,6 +161,11 @@ class VMAF:
 
         ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", source_video_path])
+
+        # scale = ""
+        # if resize_input_black_bars:
+        #     scale = crop_black_bars_size(vapoursynth_accurate_seek)
+        #     scale = f"[reference]{scale};"
 
         ffmpeg_command.extend(
             [
@@ -249,12 +263,18 @@ class VMAF:
 #     ) -> int: ...
 
 
-def crop_black_bars_size(source_video_path: ffmpeg.accurate_seek) -> str:
+def crop_black_bars_size(source_video_path: ffmpeg.accurate_seek | str) -> str:
     source_video_path_data = ffmpeg.get_video_metadata(source_video_path)
     ffmpeg_output = subprocess.getoutput(
-        # f'ffmpeg -i "{source_video_path}" -t 10 -vf cropdetect -f null -'
-        source_video_path.command(None, round(source_video_path_data.frame_rate * 20))
-        + "ffmpeg -i - -vf cropdetect -f null -"
+        (f'ffmpeg -i "{source_video_path}" -t 10 -vf cropdetect -f null -')
+        if isinstance(source_video_path, str)
+        else (
+            source_video_path.command(
+                None,
+                round(source_video_path_data.frame_rate * 20),  # 20 seconds in
+            )
+            + "ffmpeg -i - -vf cropdetect -f null -"
+        )
     )
     data = [x for x in ffmpeg_output.splitlines() if "crop=" in x][-1]
 
