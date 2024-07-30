@@ -9,8 +9,9 @@ import json
 import os
 from rich.traceback import install
 
-
+import v2_target_videoCRF
 from types import TracebackType
+from pathlib import Path
 
 _ = install(show_locals=True)
 
@@ -256,6 +257,7 @@ class accurate_seek:
         video_filename_with_extension: str,
         filename_vpy_without_extension: str,
         accurate_seek_method: Literal["ffms2", "bs"],
+        # video: v2_target_videoCRF.RawVideoData
         extra_commands: str = "",
     ) -> None:
         self.filename_of_vpy = f"{filename_vpy_without_extension.replace('.', '')}.vpy"
@@ -339,8 +341,8 @@ def run_ffmpeg_command(
 
 
 def concatenate_video_files(
-    list_of_video_files: list[str],
-    output_filename_with_extension: str,
+    list_of_video_files: list[Path],
+    output_filename_with_extension: Path,
 ):
     """
     NOTE THE CODEC OF THE VIDEO FILES MUST BE THE SAME!
@@ -352,7 +354,7 @@ def concatenate_video_files(
     print(
         f'RUNNING COMMAND: ffmpeg -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"'
     )
-    _ = subprocess.run(  # -safe 0 (has some wierd effect of changing DTS values)
+    _ = subprocess.run(
         f'ffmpeg -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"',
         shell=True,
         check=True,
@@ -385,10 +387,12 @@ class VideoMetadata:
     # is_HDR: bool
 
 
+# BUG: this function needs porting over (haven't done yet because cyclic import needs fixing)
 @file_cache.cache()
 def get_video_metadata(
     # filename: str,
-    input_file_vapoursynth: accurate_seek | str,
+    # input_file_vapoursynth: accurate_seek | str,
+    video_data: v2_target_videoCRF.RawVideoData,
 ) -> VideoMetadata:
     def make_video_metadata(json_data: dict[str, dict]) -> VideoMetadata:
         first_stream_with_video: dict[str, str | int] = [

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 import file_cache
 import ffmpeg
 import os
@@ -8,6 +9,8 @@ import subprocess
 
 
 from rich.traceback import install
+
+import v2_target_videoCRF
 
 _ = install(show_locals=True)
 
@@ -35,12 +38,13 @@ class VMAF:
     RANGE: range = range(0, 100 + 1)
     IMPROVING_DIRECTION = +1
 
-    # @file_cache.cache()
+    @file_cache.cache()
     def summary_of_overall_video_vapoursynth(
         self,
         # source_video: str,
-        vapoursynth_accurate_seek: ffmpeg.accurate_seek,
-        encoded_video_path: str,  # | None
+        # vapoursynth_accurate_seek: ffmpeg.accurate_seek,
+        # encoded_video_path: str,  # | None
+        video_data: v2_target_videoCRF.RawVideoData,
         # resize_input_black_bars: bool,
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         threads_to_use: int = 6,
@@ -48,23 +52,9 @@ class VMAF:
     ) -> float:
         print("Running FFMPEG COMMAND for vmaf")
 
-        # value = VMAF(90).throughout_video_vapoursynth(
-        #     vapoursynth_accurate_seek, encoded_video_path, source_start_end_frame
-        # )
-        # return sum(value) / len(value)
-        # return min(value)
-
-        frame_rate = ffmpeg.get_video_metadata(encoded_video_path).frame_rate
-        # source_data = ffmpeg.get_video_metadata(vapoursynth_accurate_seek)
+        frame_rate = ffmpeg.get_video_metadata(video_data).frame_rate
 
         ffmpeg_command: list[str] = []
-
-        # if source_start_end_frame is not None:
-        #     total_frames = ffmpeg.get_video_metadata(source_video_path).total_frames
-        #     if source_start_end_frame[1] == total_frames:
-        #         source_start_end_frame = (source_start_end_frame[0], None)
-        #     ffmpeg_command.append(vapoursynth_accurate_seek.command(*source_start_end_frame))
-        #     source_video = "-"
 
         ffmpeg_command.append(
             vapoursynth_accurate_seek.command(*source_start_end_frame)
@@ -118,12 +108,12 @@ class VMAF:
             [x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]
         )
 
-    # @file_cache.cache()
+    @file_cache.cache()
     def throughout_video_vapoursynth(
         self,
         # source_video_path: str,
         vapoursynth_accurate_seek: ffmpeg.accurate_seek,
-        encoded_video_path: str,  # | None,
+        encoded_video_path: Path,  # | None,
         # resize_input_black_bars: bool,
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         # encode_start_end_frame: None | tuple[int, int] = None,
@@ -138,17 +128,6 @@ class VMAF:
 
         ffmpeg_command: list[str] = []
 
-        # if source_start_end_frame is not None:
-        #     # total_frames = ffmpeg.get_video_metadata(source_video_path).total_frames
-        #     #
-        #     # if source_start_end_frame[1] == total_frames:
-        #     #     source_start_end_frame = (source_start_end_frame[0], None)
-        #
-        #     ffmpeg_command.append(
-        #         vapoursynth_accurate_seek.command(*source_start_end_frame)
-        #     )
-        #     source_video_path = "-"
-
         ffmpeg_command.append(
             vapoursynth_accurate_seek.command(*source_start_end_frame)
         )
@@ -161,11 +140,6 @@ class VMAF:
 
         ffmpeg_command.extend(["-r", str(frame_rate)])
         ffmpeg_command.extend(["-i", source_video_path])
-
-        # scale = ""
-        # if resize_input_black_bars:
-        #     scale = crop_black_bars_size(vapoursynth_accurate_seek)
-        #     scale = f"[reference]{scale};"
 
         ffmpeg_command.extend(
             [
@@ -208,14 +182,6 @@ class VMAF:
             print("FileNotFoundError for removing log.json")
 
         return vmaf_data
-
-    # def summary_of_overall_video(
-    #     self,
-    #     source_video: str,
-    #     encoded_video_path: str,
-    #     threads_to_use: int = 6,
-    #     subsample: int = 2,
-    # ) -> float:
 
 
 # @dataclass()

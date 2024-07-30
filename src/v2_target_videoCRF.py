@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 import ffmpeg
 import ffmpeg_heuristics
@@ -11,6 +12,7 @@ from rich.progress import Progress, TimeElapsedColumn, track
 import concurrent.futures
 import os
 import time
+from hashlib import sha256
 
 from rich.console import Console
 # import pickle
@@ -22,11 +24,60 @@ progress = Progress(
 )
 
 
+def calculate_sha(text: str | bytes) -> str:
+    if isinstance(text, str):
+        sha_value = sha256(text.encode()).hexdigest()
+    else:
+        sha_value = sha256(text).hexdigest()
+    return sha_value
+
+
 @dataclass
-class videoData:
-    full_input_filename: str  # could change to Path
-    full_output_filename: str
+class vapoursynth_data:
     vapoursynth_script: str
+    vapoursynth_seek_method: Literal["ffms2", "bs"]
+    crop_black_bars: bool = True
+
+
+class RawVideoData:
+    def __init__(
+        self,
+        input_filename: Path,
+        output_filename: Path,
+        vapoursynth_script: vapoursynth_data | None,
+    ) -> None:
+        # vapoursynth_seek: ffmpeg.accurate_seek | None = None
+        # sha256_of_input: str | None = None
+
+        assert os.path.isfile(
+            input_filename
+        ), f"CRITICAL ERROR: {input_filename} Does Not Exist!!"
+
+        self.input_filename: Path | ffmpeg.accurate_seek = input_filename
+        self.output_filename: Path = output_filename
+        # self.vapoursynth_script: str = vapoursynth_script
+        # self.vapoursynth_seek_method = vapoursynth_seek_method
+        # self.crop_black_bars: bool = crop_black_bars
+
+        # def __post_init__(self):
+        with open(self.input_filename, "rb") as f:
+            self.sha256_of_input = calculate_sha(f.read())
+
+        if isinstance(vapoursynth_script, vapoursynth_data):
+            if vapoursynth_data.crop_black_bars:
+                vapoursynth_data.vapoursynth_script += f"\nclip = core.std.CropAbs(clip, {ffmpeg_heuristics.crop_black_bars_size(str(self.input_filename)).split("=")[-1].replace(":",",")})\n"
+
+            self.input_filename = ffmpeg.accurate_seek(
+                str(self.input_filename),
+                str(self.input_filename),
+                vapoursynth_data.vapoursynth_seek_method,
+                extra_commands=vapoursynth_data.vapoursynth_script,
+            )
+
+
+@dataclass
+class videoInputData:
+    videodata: RawVideoData
     codec: ffmpeg.VideoCodec
     heuristic: ffmpeg_heuristics.heuristic
     minimum_scene_length_seconds: float
@@ -36,34 +87,19 @@ class videoData:
     scenes_length_sort: Literal["chronological", "largest first", "smallest first"] = (
         "largest first"  # ensures that CPU always being used
     )
-    crop_black_bars: bool = True
     make_comparison_with_blend_filter: bool = False
 
 
-def compressing_video(video: videoData) -> None:
-    assert os.path.isfile(
-        video.full_input_filename
-    ), f"CRITICAL ERROR: {video.full_input_filename} Does Not Exist!!"
-
-    if video.crop_black_bars:
-        video.vapoursynth_script += f"\nclip = core.std.CropAbs(clip, {ffmpeg_heuristics.crop_black_bars_size(video.full_input_filename).split("=")[-1].replace(":",",")})\n"
-
-    seeking_data_input_file = ffmpeg.accurate_seek(
-        video.full_input_filename,
-        video.full_input_filename,
-        "ffms2",
-        extra_commands=video.vapoursynth_script,
-    )
-
+def compressing_video(video: videoInputData) -> None:
     with rich_console.status(
-        f"Getting metadata of input file ({video.full_input_filename})"
+        f"Getting metadata of input file ({video.videodata.input_filename})"
     ):
-        input_filename_data = ffmpeg.get_video_metadata(seeking_data_input_file)
+        input_filename_data = ffmpeg.get_video_metadata(video.videodata)
         print(input_filename_data)
 
     with rich_console.status("Calculating scenes"):
         raw_video_scenes = scene_detection.find_scenes(
-            video.full_input_filename, video.minimum_scene_length_seconds
+            video.videodata, video.minimum_scene_length_seconds
         )
         scale_factor = raw_video_scenes[-1].end_frame / input_filename_data.total_frames
         raw_video_scenes = [
@@ -73,6 +109,7 @@ def compressing_video(video: videoData) -> None:
             for x in raw_video_scenes
         ]
         print(raw_video_scenes)
+
         match video.scenes_length_sort:
             case "smallest first":
                 video_scenes = sorted(
@@ -101,14 +138,14 @@ def compressing_video(video: videoData) -> None:
         section: int, video_section: scene_detection.SceneData
     ) -> tuple[int, scene_detection.SceneData, compress_video_section_data]:
         video_section_data = _compress_video_section(
-            video.full_input_filename,
-            _temporary_video_file_names(section),
+            video.videodata.input_filename,
+            temporary_video_file_names(section, video.videodata.input_filename.parent),
             input_filename_data,
             video.codec,
             video.heuristic,
             video_section.start_frame,
             video_section.end_frame,
-            seeking_data_input_file,
+            video.videodata.vapoursynth_script.vapoursynth_seek,
         )
         return (section, video_section, video_section_data)
 
@@ -136,15 +173,18 @@ def compressing_video(video: videoData) -> None:
 
     with rich_console.status("Concatenating intermediate files"):
         ffmpeg.concatenate_video_files(
-            [_temporary_video_file_names(x) for x in range(len(video_scenes))],
-            video.full_output_filename,
+            [
+                temporary_video_file_names(x, video.videodata.input_filename.parent)
+                for x in range(len(video_scenes))
+            ],
+            video.videodata.output_filename,
         )
 
     with rich_console.status("Generating graph of data"):
         with graph_generate.LinegraphImage(
             filename="video_graph",
             x_axis_name="frames",
-            title_of_graph=f"CRF & {video.heuristic.NAME} - {video.full_input_filename} to {video.full_output_filename} ({video.codec.NAME})",
+            title_of_graph=f"CRF & {video.heuristic.NAME} - {video.videodata.input_filename} to {video.videodata.output_filename} ({video.codec.NAME})",
         ) as graph_instance:
             graph_instance.add_linegraph_left(
                 x_data=[
@@ -162,7 +202,9 @@ def compressing_video(video: videoData) -> None:
                 y_data=(
                     heuristic_throughout_data
                     := video.heuristic.throughout_video_vapoursynth(
-                        seeking_data_input_file, video.full_output_filename
+                        # seeking_data_input_file, video.full_output_filename
+                        video.videodata.vapoursynth_seek,
+                        video.videodata.output_filename,
                     )
                 ),
                 x_data=list(range(len(heuristic_throughout_data))),
@@ -197,9 +239,9 @@ def compressing_video(video: videoData) -> None:
             )
 
     for x in range(len(video_scenes)):
-        print(_temporary_video_file_names(x))
-        print(ffmpeg.get_video_metadata(_temporary_video_file_names(x)))
-        os.remove(_temporary_video_file_names(x))
+        print(temporary_video_file_names(x))
+        print(ffmpeg.get_video_metadata(temporary_video_file_names(x)))
+        os.remove(temporary_video_file_names(x))
 
     with rich_console.status("Combining audio+subtitles from source video"):
         ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
@@ -223,9 +265,9 @@ def compressing_video(video: videoData) -> None:
     print(ffmpeg.get_video_metadata(video.full_output_filename))
 
 
-def _temporary_video_file_names(position: int) -> str:
+def temporary_video_file_names(position: int, filepath: Path) -> Path:
     # , extension: str = "mkv"
-    return f"temp-{position}.mkv"
+    return filepath / Path(f"temp-{position}.mkv")
 
 
 @dataclass()
@@ -237,8 +279,8 @@ class compress_video_section_data:
 
 @file_cache.cache()
 def _compress_video_section(
-    full_input_filename_part: str,
-    full_output_filename: str,
+    full_input_filename_part: Path | ffmpeg.accurate_seek,
+    full_output_filename: Path,
     input_filename_data: ffmpeg.VideoMetadata,
     codec: ffmpeg.VideoCodec,
     heuristic: ffmpeg_heuristics.heuristic,

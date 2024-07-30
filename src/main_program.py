@@ -1,3 +1,4 @@
+from pathlib import Path
 import ffmpeg
 import v2_target_videoCRF
 import ffmpeg_heuristics
@@ -15,24 +16,34 @@ vapoursynth_script: str = "\n".join(
 
 
 def main() -> None:
-    v2_target_videoCRF.compressing_video(
-        v2_target_videoCRF.videoData(
-            "moana.mp4",
-            "OUTPUT-TEMP.mkv",
-            vapoursynth_script,
-            # ffmpeg.APPLE_HWENC_H265(bitdepth="p010le"),
-            # ffmpeg.H265(preset="medium"),
-            ffmpeg.H264(preset="fast"),
-            # ffmpeg.SVTAV1(preset=6),
-            ffmpeg_heuristics.VMAF(90),
-            minimum_scene_length_seconds=4,
-            audio_commands="-c:a copy",
-            multithreading_threads=1,
-            scenes_length_sort="smallest first",
-            make_comparison_with_blend_filter=False,  # fix
+    video_input = v2_target_videoCRF.RawVideoData(
+        input_filename=Path("moana.mp4"),
+        output_filename=Path("output-temp.mkv"),
+        vapoursynth_script=v2_target_videoCRF.vapoursynth_data(
+            vapoursynth_script=vapoursynth_script,
+            vapoursynth_seek_method="ffms2",
             crop_black_bars=True,
-        )
+        ),
     )
+
+    video_data = v2_target_videoCRF.videoInputData(
+        video_input,
+        # "moana.mp4",
+        # "OUTPUT-TEMP.mkv",
+        # vapoursynth_script,
+        # ffmpeg.APPLE_HWENC_H265(bitdepth="p010le"),
+        # ffmpeg.H265(preset="medium"),
+        ffmpeg.H264(preset="fast"),
+        # ffmpeg.SVTAV1(preset=6),
+        ffmpeg_heuristics.VMAF(90),
+        minimum_scene_length_seconds=4,
+        audio_commands="-c:a copy",
+        multithreading_threads=1,
+        scenes_length_sort="smallest first",
+        make_comparison_with_blend_filter=False,  # fix
+    )
+
+    v2_target_videoCRF.compressing_video(video_data)
 
 
 if __name__ == "__main__":

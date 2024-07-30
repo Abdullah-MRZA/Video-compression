@@ -3,6 +3,9 @@ import file_cache
 import scenedetect as sd
 import ffmpeg
 
+# import v2_target_videoCRF
+from v2_target_videoCRF import RawVideoData
+
 
 @dataclass()
 class SceneData:
@@ -48,17 +51,15 @@ def _ensure_scene_length_is_larger_than_minimum_length(
 
 @file_cache.cache(prefix_name="SceneCache-", persistent_after_termination=True)
 def find_scenes(
-    video_path: str,
+    # video_path: str,
+    video_data: RawVideoData,
     minimum_length_scene_seconds: float,
-    # start_time: float,
-    # end_time: float
-    # threshold: float,
 ) -> list[SceneData]:
     """
     Function that gets the frames of the different scenes in the video
     - for threshold, 27.0 is default value
     """
-    video = sd.open_video(video_path)
+    video = sd.open_video(str(video_data.input_filename))
     scene_manager = sd.SceneManager()
     # scene_manager.add_detector(sd.ContentDetector(threshold=threshold))
 
@@ -69,7 +70,7 @@ def find_scenes(
 
     _ = scene_manager.detect_scenes(video)
 
-    video_data = ffmpeg.get_video_metadata(video_path)
+    video_data = ffmpeg.get_video_metadata()
 
     scene_data = [
         SceneData(
