@@ -12,7 +12,7 @@ compare_file = "small-trim-crf.mp4"
 accurate_seek = ffmpeg.ffms2seek(input_file, input_file)
 
 minimum_expected_vmaf = min(
-    ffmpeg_heuristics.VMAF(90).throughout_video_vapoursynth(
+    ffmpeg_heuristics.VMAF(90).throughout_video(
         input_file, compare_file, "ffmpeg", accurate_seek, subsample=1
     )
 )
@@ -62,7 +62,7 @@ try:
         )
 
         vmaf_got_throughout = mean(
-            ffmpeg_heuristics.VMAF(90).throughout_video_vapoursynth(
+            ffmpeg_heuristics.VMAF(90).throughout_video(
                 input_file,
                 compare_file,
                 "ffmpeg",

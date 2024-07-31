@@ -5,8 +5,8 @@ import os
 import pickle
 import inspect
 from hashlib import sha256
-import atexit
 from pathlib import Path
+# import atexit
 # from tempfile import TemporaryFile
 
 
@@ -43,6 +43,7 @@ def cache(
     prefix_name: str = "",
     extension: str = "pickle",
     persistent_after_termination: bool = False,
+    sub_directory: Path | None = None,
 ):
     if not os.path.exists(CACHE_DIRECTORY):
         os.makedirs(CACHE_DIRECTORY)
@@ -60,6 +61,7 @@ def cache(
             # cache_filename = f"{CACHE_DIRECTORY}/{prefix_name}cache-{function_signature_unique}.{extension}"
             cache_filename = (
                 CACHE_DIRECTORY
+                / (sub_directory if sub_directory is not None else Path())
                 / f"{prefix_name}cache-{function_signature_unique}.{extension}"
             )
 

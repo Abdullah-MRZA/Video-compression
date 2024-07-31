@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 import file_cache
 import scenedetect as sd
 import ffmpeg
@@ -49,7 +50,11 @@ def _ensure_scene_length_is_larger_than_minimum_length(
     return scene_data
 
 
-@file_cache.cache(prefix_name="SceneCache-", persistent_after_termination=True)
+@file_cache.cache(
+    prefix_name="SceneCache-",
+    persistent_after_termination=True,
+    sub_directory=Path("scene_data"),
+)
 def find_scenes(
     # video_path: str,
     video_data: RawVideoData,
@@ -70,7 +75,7 @@ def find_scenes(
 
     _ = scene_manager.detect_scenes(video)
 
-    video_data = ffmpeg.get_video_metadata()
+    video_metadata = ffmpeg.get_video_metadata(video_data)
 
     scene_data = [
         SceneData(
@@ -81,11 +86,11 @@ def find_scenes(
     ]
 
     scene_data = _ensure_scene_length_is_larger_than_minimum_length(
-        scene_data, video_data.frame_rate, minimum_length_scene_seconds
+        scene_data, video_metadata.frame_rate, minimum_length_scene_seconds
     )
 
     if len(scene_data) == 0:
-        scene_data = [SceneData(start_frame=0, end_frame=video_data.total_frames)]
+        scene_data = [SceneData(start_frame=0, end_frame=video_metadata.total_frames)]
 
     return scene_data
 

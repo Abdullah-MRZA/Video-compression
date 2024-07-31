@@ -193,7 +193,7 @@ def compress_video(
             subsample_amount = 2
 
             heuristic_data_throughout_video: list[float] = (
-                heuristic_type.throughout_video_vapoursynth(
+                heuristic_type.throughout_video(
                     source_video_path=input_filename_with_extension,
                     encoded_video_path=output_filename_with_extension,
                     ffmpeg_path=ffmpeg_path,
@@ -341,7 +341,7 @@ def _compress_video_part(
             # current_crf_heuristic: float = heuristic_type.summary_of_overall_video(
             current_crf_heuristic = heuristic_type.summary_of_overall_video(
                 source_video=input_filename,
-                encoded_video_path=tempoary_video_file_name,
+                compressed_video=tempoary_video_file_name,
                 source_start_end_frame=(
                     video_part_frame_data.start_frame,
                     video_part_frame_data.end_frame,

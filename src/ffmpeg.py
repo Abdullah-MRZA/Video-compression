@@ -19,6 +19,14 @@ _ = install(show_locals=True)
 # type VideoCodec = SVTAV1 | H264 | H265 | APPLE_HWENC_H265
 type VideoCodec = SVTAV1 | H264 | H265
 
+"""
+there's also "process substitution" in many shells, roughly: `cat input | ffmpeg -i - … - | do_more`
+is the same as `ffmpeg -i <(cat some_file) >(do_more)`,
+but the <(…) or >(…) can be repeated as
+necessary. Upside: no manual creation/cleanup. Downside: unreadable unless you code
+generate… at which point named pipes are also on the table.
+"""
+
 
 @dataclass()
 class SVTAV1PSY:
@@ -288,23 +296,27 @@ class accurate_seek:
 
 
 def run_ffmpeg_command(
+    # video data
+    input_file: v2_target_videoCRF.RawVideoData,
+    output_file: Path | None,
     # CRF used
     crf_value: int,
-    # video data
-    input_filename: str,
-    output_filename: str,
     # compression data
     codec_information: VideoCodec,
     start_frame: int,
     end_frame: int,
     # crop_black_bars: bool,
     keyframe_placement: int | None,
-    input_file_script_seeking: accurate_seek,
-) -> None:
-    framerate: float = get_video_metadata(input_file_script_seeking).frame_rate
+    # input_file_script_seeking: accurate_seek,
+) -> None | str:
+    framerate: float = get_video_metadata(input_file).frame_rate
     command: list[str] = []
 
-    command.append(input_file_script_seeking.command(start_frame, end_frame))
+    assert isinstance(
+        input_file.input_filename, accurate_seek
+    ), "Can't use 'run_ffmpeg_command' with without full data (must be accurate_seek, not Path)"
+
+    command.append(input_file.input_filename.command(start_frame, end_frame))
 
     command.extend(
         [
@@ -324,17 +336,14 @@ def run_ffmpeg_command(
         ]
     )
 
-    # if crop_black_bars:
-    #     import ffmpeg_heuristics
-    #
-    #     size = ffmpeg_heuristics.crop_black_bars_size(input_file_script_seeking)
-    #     command.append(f"-vf {size}")
-
     if keyframe_placement is not None:
-        # command.insert(-1, f"-g {keyframe_placement}")
         command.append(f"-g {keyframe_placement}")
 
-    command.append(codec_information.output_file(output_filename))
+    if output_file is None:
+        command.append("-")
+        return " ".join(command)
+
+    command.append(codec_information.output_file(str(output_file)))
 
     print("FFMPEG COMMAND --> " + " ".join(command))
     _ = subprocess.run(" ".join(command), shell=True, check=True)
@@ -428,7 +437,7 @@ def get_video_metadata(
         )
 
     data = subprocess.run(
-        f'ffprobe -v quiet -print_format json -show_format -show_streams -count_frames "{input_file_vapoursynth}"'
+        f'ffprobe -v quiet -print_format json -show_format -show_streams -count_frames <(cat "{input_file_vapoursynth}")'
         if isinstance(input_file_vapoursynth, str)
         else f"{input_file_vapoursynth.command(None, None)} ffprobe -v quiet -print_format json -show_format -show_streams -count_frames -",
         check=True,
@@ -625,8 +634,8 @@ def visual_comparison_of_video_with_blend_filter(
 
 
 def combine_audio_and_subtitle_streams_from_another_video(
-    input_file_name_with_extension: str,
-    output_file_name_with_extension: str,
+    input_file_name_with_extension: v2_target_videoCRF.input_file,
+    output_file_name_with_extension: Path,
     audio_commands: str | None = None,
     subtitle_commands: str | None = None,
 ) -> None:
@@ -642,7 +651,7 @@ def combine_audio_and_subtitle_streams_from_another_video(
             commands.append(subtitle_commands)
 
         _ = subprocess.run(
-            f"ffmpeg -i {input_file_name_with_extension} -i {output_file_name_with_extension} -map 1:v -map 0:a? -map 0:s? -c:v copy {' '.join(commands)} {intermediate_file}",
+            f"ffmpeg -i <(cat \"{input_file_name_with_extension}\") -i <(cat \"{output_file_name_with_extension}\") -map 1:v -map 0:a? -map 0:s? -c:v copy {' '.join(commands)} {intermediate_file}",
             shell=True,
             check=True,
         )

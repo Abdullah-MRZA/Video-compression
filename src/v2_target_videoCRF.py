@@ -39,6 +39,9 @@ class vapoursynth_data:
     crop_black_bars: bool = True
 
 
+type input_file = Path | ffmpeg.accurate_seek
+
+
 class RawVideoData:
     def __init__(
         self,
@@ -137,15 +140,15 @@ def compressing_video(video: videoInputData) -> None:
     def compress_video_section_call(
         section: int, video_section: scene_detection.SceneData
     ) -> tuple[int, scene_detection.SceneData, compress_video_section_data]:
-        video_section_data = _compress_video_section(
-            video.videodata.input_filename,
-            temporary_video_file_names(section, video.videodata.input_filename.parent),
-            input_filename_data,
+        video_section_data = identify_videosection_optimal_crf(
+            video.videodata,
+            # temporary_video_file_names(section, video.videodata.input_filename.parent),
+            # input_filename_data,
             video.codec,
             video.heuristic,
             video_section.start_frame,
             video_section.end_frame,
-            video.videodata.vapoursynth_script.vapoursynth_seek,
+            # video.videodata.vapoursynth_script.vapoursynth_seek,
         )
         return (section, video_section, video_section_data)
 
@@ -171,14 +174,14 @@ def compressing_video(video: videoInputData) -> None:
         results = sorted(results)
         optimal_crf_list = [x[1:] for x in results]
 
-    with rich_console.status("Concatenating intermediate files"):
-        ffmpeg.concatenate_video_files(
-            [
-                temporary_video_file_names(x, video.videodata.input_filename.parent)
-                for x in range(len(video_scenes))
-            ],
-            video.videodata.output_filename,
-        )
+    # with rich_console.status("Concatenating intermediate files"):
+    #     ffmpeg.concatenate_video_files(
+    #         [
+    #             temporary_video_file_names(x, video.videodata.input_filename.parent)
+    #             for x in range(len(video_scenes))
+    #         ],
+    #         video.videodata.output_filename,
+    #     )
 
     with rich_console.status("Generating graph of data"):
         with graph_generate.LinegraphImage(
@@ -198,21 +201,20 @@ def compressing_video(video: videoInputData) -> None:
                 marker="o",
                 colour="red",
             )
-            graph_instance.add_linegraph_right(
-                y_data=(
-                    heuristic_throughout_data
-                    := video.heuristic.throughout_video_vapoursynth(
-                        # seeking_data_input_file, video.full_output_filename
-                        video.videodata.vapoursynth_seek,
-                        video.videodata.output_filename,
-                    )
-                ),
-                x_data=list(range(len(heuristic_throughout_data))),
-                name_of_axes=f"\n\n+ found overall (at the end) {video.heuristic.NAME}",
-                y_axis_range=video.heuristic.RANGE,
-                marker="",
-                colour="orange",
-            )
+            # graph_instance.add_linegraph_right(
+            #     y_data=(
+            #         heuristic_throughout_data := video.heuristic.throughout_video(
+            #             # seeking_data_input_file, video.full_output_filename
+            #             video.videodata.vapoursynth_seek,
+            #             video.videodata.output_filename,
+            #         )
+            #     ),
+            #     x_data=list(range(len(heuristic_throughout_data))),
+            #     name_of_axes=f"\n\n+ found overall (at the end) {video.heuristic.NAME}",
+            #     y_axis_range=video.heuristic.RANGE,
+            #     marker="",
+            #     colour="orange",
+            # )
             graph_instance.add_linegraph_right(
                 y_data=(
                     y_data_values := [
@@ -238,31 +240,31 @@ def compressing_video(video: videoInputData) -> None:
                 colour="blue",
             )
 
-    for x in range(len(video_scenes)):
-        print(temporary_video_file_names(x))
-        print(ffmpeg.get_video_metadata(temporary_video_file_names(x)))
-        os.remove(temporary_video_file_names(x))
+    # for x in range(len(video_scenes)):
+    #     print(temporary_video_file_names(x))
+    #     print(ffmpeg.get_video_metadata(temporary_video_file_names(x)))
+    #     os.remove(temporary_video_file_names(x))
 
-    with rich_console.status("Combining audio+subtitles from source video"):
-        ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
-            video.full_input_filename,
-            video.full_output_filename,
-            video.audio_commands,
-            video.subtitle_commands,
-        )
+    # with rich_console.status("Combining audio+subtitles from source video"):
+    #     ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
+    #         video.full_input_filename,
+    #         video.full_output_filename,
+    #         video.audio_commands,
+    #         video.subtitle_commands,
+    #     )
 
-    if video.make_comparison_with_blend_filter:
-        with rich_console.status("Making a visual comparison with blend filter"):
-            ffmpeg.visual_comparison_of_video_with_blend_filter(
-                seeking_data_input_file,
-                video.full_output_filename,
-                "visual_comparison.mp4",
-            )
+    # if video.make_comparison_with_blend_filter:
+    #     with rich_console.status("Making a visual comparison with blend filter"):
+    #         ffmpeg.visual_comparison_of_video_with_blend_filter(
+    #             seeking_data_input_file,
+    #             video.full_output_filename,
+    #             "visual_comparison.mp4",
+    #         )
 
     print(optimal_crf_list)
 
-    print(ffmpeg.get_video_metadata(video.full_input_filename))
-    print(ffmpeg.get_video_metadata(video.full_output_filename))
+    print(ffmpeg.get_video_metadata(video.videodata))
+    # print(ffmpeg.get_video_metadata(video.full_output_filename))
 
 
 def temporary_video_file_names(position: int, filepath: Path) -> Path:
@@ -278,16 +280,17 @@ class compress_video_section_data:
 
 
 @file_cache.cache()
-def _compress_video_section(
-    full_input_filename_part: Path | ffmpeg.accurate_seek,
-    full_output_filename: Path,
-    input_filename_data: ffmpeg.VideoMetadata,
+def identify_videosection_optimal_crf(
+    video: RawVideoData,
     codec: ffmpeg.VideoCodec,
     heuristic: ffmpeg_heuristics.heuristic,
     frame_start: int,
     frame_end: int,
-    input_file_vapoursynth_seeking: ffmpeg.accurate_seek,
 ) -> compress_video_section_data:
+    """
+    This function finds the optimal CRF value for a target quality heuristic
+    This does not render the video itself, and is thus a pure function
+    """
     bottom_crf_value = min(codec.ACCEPTED_CRF_RANGE)
     top_crf_value = max(codec.ACCEPTED_CRF_RANGE)
 
@@ -297,28 +300,33 @@ def _compress_video_section(
     #     f"{full_input_filename_part}-{frame_start}-{frame_end}-{codec}.tempfile"
     # ):
 
+    # def expect[T](data: T) -> T:
+    #     assert data is not None, "Should never be None"
+    #     return data
+
+    def expect_str(data: str | None) -> str:
+        assert data is not None, "Should never be None"
+        return data
+
     while (
         current_crf := (top_crf_value + bottom_crf_value) // 2
     ) not in all_heuristic_crf_values.keys():
         while os.path.isfile("STOP.txt"):
             time.sleep(1)
 
-        ffmpeg.run_ffmpeg_command(
+        crf_ffmpeg_command = ffmpeg.run_ffmpeg_command(
+            video,
+            None,
             current_crf,
-            full_input_filename_part,
-            full_output_filename,
             codec,
             frame_start,
             frame_end,
-            # True,
             300,
-            input_file_vapoursynth_seeking,
         )
 
-        current_heuristic = heuristic.summary_of_overall_video_vapoursynth(
-            input_file_vapoursynth_seeking,
-            full_output_filename,
-            # True,
+        current_heuristic = heuristic.summary_of_overall_video(
+            video,
+            expect_str(crf_ffmpeg_command),
             source_start_end_frame=(frame_start, frame_end),
             subsample=2,
         )
@@ -343,25 +351,19 @@ def _compress_video_section(
         key=lambda x: abs(x[1] - heuristic.target_score),
     )
 
-    print(f"Closest value: {closest_value}")
-    if current_crf != closest_value[0]:
-        print("DIFFERENCE IN FINAL AND BEST CRF")
-        ffmpeg.run_ffmpeg_command(
-            closest_value[0],
-            full_input_filename_part,
-            full_output_filename,
-            codec,
-            frame_start,
-            frame_end,
-            # True,
-            300,
-            input_file_vapoursynth_seeking,
-        )
-
-    heuristic_throughout = heuristic.throughout_video_vapoursynth(
-        input_file_vapoursynth_seeking,
-        full_output_filename,
-        # True,
+    heuristic_throughout = heuristic.throughout_video(
+        video,
+        expect_str(
+            ffmpeg.run_ffmpeg_command(
+                video,
+                None,
+                current_crf,
+                codec,
+                frame_start,
+                frame_end,
+                300,
+            )
+        ),
         source_start_end_frame=(frame_start, frame_end),
         subsample=1,
     )

@@ -39,13 +39,10 @@ class VMAF:
     IMPROVING_DIRECTION = +1
 
     @file_cache.cache()
-    def summary_of_overall_video_vapoursynth(
+    def summary_of_overall_video(
         self,
-        # source_video: str,
-        # vapoursynth_accurate_seek: ffmpeg.accurate_seek,
-        # encoded_video_path: str,  # | None
         video_data: v2_target_videoCRF.RawVideoData,
-        # resize_input_black_bars: bool,
+        compressed_video: Path | str,
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
@@ -56,18 +53,18 @@ class VMAF:
 
         ffmpeg_command: list[str] = []
 
-        ffmpeg_command.append(
-            vapoursynth_accurate_seek.command(*source_start_end_frame)
-        )
+        if isinstance(video_data.input_filename, ffmpeg.accurate_seek):
+            ffmpeg_command.append(
+                video_data.input_filename.command(*source_start_end_frame)
+            )
 
-        source_video = "-"
         ffmpeg_command.append("ffmpeg")
 
-        ffmpeg_command.extend(["-r", str(frame_rate)])
-        ffmpeg_command.extend(["-i", encoded_video_path])
+        ffmpeg_command.append(f"-r {str(frame_rate)}")
+        ffmpeg_command.append(f"-i <(cat {compressed_video})")
 
-        ffmpeg_command.extend(["-r", str(frame_rate)])
-        ffmpeg_command.extend(["-i", source_video])
+        ffmpeg_command.append(f"-r {str(frame_rate)}")
+        ffmpeg_command.append(f"-i <(cat {video_data.input_filename})")
 
         # https://www.bannerbear.com/blog/how-to-trim-a-video-using-ffmpeg/#:~:text=You%20can%20trim%20the%20input%20video%20to%20a%20specific%20duration,the%20beginning%20of%20the%20video.&text=In%20the%20command%20above%2C%20%2Dvf,the%20duration%20to%203%20seconds.
         # https://stackoverflow.com/questions/67598772/right-way-to-use-vmaf-with-ffmpeg
@@ -109,37 +106,32 @@ class VMAF:
         )
 
     @file_cache.cache()
-    def throughout_video_vapoursynth(
+    def throughout_video(
         self,
-        # source_video_path: str,
-        vapoursynth_accurate_seek: ffmpeg.accurate_seek,
-        encoded_video_path: Path,  # | None,
-        # resize_input_black_bars: bool,
+        video_data: v2_target_videoCRF.RawVideoData,
+        compressed_video: Path | str,
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
-        # encode_start_end_frame: None | tuple[int, int] = None,
         threads_to_use: int = 6,
-        subsample: int = 1,  # Calculate per X frames
+        subsample: int = 1,
     ) -> list[float]:
-        print("Running FFMPEG-throughout COMMAND for vmaf")
-        frame_rate = ffmpeg.get_video_metadata(encoded_video_path).frame_rate
-        LOG_FILE_NAME = f"log-{source_start_end_frame}.json".replace(" ", "").replace(
-            ",", ""
-        )
+        print("Running FFMPEG COMMAND for vmaf")
+
+        frame_rate = ffmpeg.get_video_metadata(video_data).frame_rate
 
         ffmpeg_command: list[str] = []
 
-        ffmpeg_command.append(
-            vapoursynth_accurate_seek.command(*source_start_end_frame)
-        )
+        if isinstance(video_data.input_filename, ffmpeg.accurate_seek):
+            ffmpeg_command.append(
+                video_data.input_filename.command(*source_start_end_frame)
+            )
 
-        source_video_path = "-"
         ffmpeg_command.append("ffmpeg")
 
-        ffmpeg_command.extend(["-r", str(frame_rate)])
-        ffmpeg_command.extend(["-i", encoded_video_path])
+        ffmpeg_command.append(f"-r {str(frame_rate)}")
+        ffmpeg_command.append(f"-i <(cat {compressed_video})")
 
-        ffmpeg_command.extend(["-r", str(frame_rate)])
-        ffmpeg_command.extend(["-i", source_video_path])
+        ffmpeg_command.append(f"-r {str(frame_rate)}")
+        ffmpeg_command.append(f"-i <(cat {video_data.input_filename})")
 
         ffmpeg_command.extend(
             [
@@ -163,6 +155,10 @@ class VMAF:
         except subprocess.CalledProcessError as e:
             print("Process failed because did not return a successful return code.")
             raise e
+
+        LOG_FILE_NAME = f"log-{source_start_end_frame}.json".replace(" ", "").replace(
+            ",", ""
+        )
 
         with open(LOG_FILE_NAME, "r") as file:
             json_of_file: dict[str, list[dict[str, dict[str, int]]]] = json.loads(
