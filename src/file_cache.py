@@ -45,9 +45,6 @@ def cache(
     persistent_after_termination: bool = False,
     sub_directory: Path | None = None,
 ):
-    if not os.path.exists(CACHE_DIRECTORY):
-        os.makedirs(CACHE_DIRECTORY)
-
     def file_cache_decorator(annotated_function: TCallable) -> TCallable:
         @functools.wraps(annotated_function)
         def wrapper(*args, **kwargs):
@@ -58,6 +55,17 @@ def cache(
                 + "".join(f"{x[0]}{x[1]}" for x in kwargs.items())
             )
 
+            function_signature_unique2 = calculate_sha(
+                inspect.getsource(annotated_function)
+                + "".join(str(x) for x in args)
+                + "".join(f"{x[0]}{x[1]}" for x in kwargs.items())
+            )
+
+            assert (
+                function_signature_unique == function_signature_unique2
+            ), "sha issues!!"
+
+            # print(">FINDING IN CACHE...")
             # cache_filename = f"{CACHE_DIRECTORY}/{prefix_name}cache-{function_signature_unique}.{extension}"
             cache_filename = (
                 CACHE_DIRECTORY
@@ -65,16 +73,29 @@ def cache(
                 / f"{prefix_name}cache-{function_signature_unique}.{extension}"
             )
 
+            if not os.path.exists(cache_filename.parent):
+                os.makedirs(cache_filename.parent)
+
             if matching_data := [
                 x for x in cache_data if x.cache_filename.name == cache_filename.name
             ]:
                 return matching_data[0].cache_data
 
-            if os.path.exists(cache_filename):
+            # if os.path.exists(cache_filename):
+            if cache_filename.is_file():
                 with cache_filename.open("rb") as f:
                     recieved_value_data = pickle.load(f)
                     cache_data.append(recieved_value_data)
                     return recieved_value_data.cache_data
+
+            # if sub_directory is not None:
+            #     print(
+            #         cache_filename,
+            #         inspect.getsource(annotated_function)
+            #         + "".join(str(x) for x in args)
+            #         + "".join(f"{x[0]}{x[1]}" for x in kwargs.items()),
+            #     )
+            #     _ = input(">>RENDERING INSTEAD OF CACHE")
 
             recieved_value = annotated_function(*args, **kwargs)
 
@@ -84,6 +105,7 @@ def cache(
                 )
             )
 
+            cache_filename.parent.mkdir(parents=True, exist_ok=True)
             with cache_filename.open("wb") as f:
                 pickle.dump(recieved_value_data, f)
             # with open(str(cache_filename), "wb") as f:
@@ -106,6 +128,18 @@ def cache_cleanup():
             os.remove(file.cache_filename)
         except Exception as e:
             print(f"ERROR REMOVING CACHE FILE: {e}")
+
+
+# def recording_timer(annotated_function: TCallable) -> TCallable:
+#     @functools.wraps(annotated_function)
+#     def wrapper(*args, **kwargs):
+#         start = time.perf_counter()
+#         recieved_value = annotated_function(*args, **kwargs)
+#         elapsed = time.perf_counter() - start
+#
+#         return recieved_value
+#
+#     return cast(TCallable, wrapper)
 
 
 # _ = atexit.register(cache_cleanup)

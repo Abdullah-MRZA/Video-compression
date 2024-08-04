@@ -10,7 +10,8 @@ import subprocess
 
 from rich.traceback import install
 
-import v2_target_videoCRF
+# import v2_target_videoCRF
+import videodata
 
 _ = install(show_locals=True)
 
@@ -18,6 +19,10 @@ _ = install(show_locals=True)
 type heuristic = VMAF
 
 # PROGRAM ASSUMPTION --> Bigger heuristic is better!
+
+# def video_to_shell_input(input: Path | str) -> str:
+#     if isinstance(input, Path):
+#         return f"cat {}"
 
 
 @dataclass()
@@ -38,10 +43,10 @@ class VMAF:
     RANGE: range = range(0, 100 + 1)
     IMPROVING_DIRECTION = +1
 
-    @file_cache.cache()
+    # @file_cache.cache()
     def summary_of_overall_video(
         self,
-        video_data: v2_target_videoCRF.RawVideoData,
+        video_data: videodata.RawVideoData,
         compressed_video: Path | str,
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         threads_to_use: int = 6,
@@ -58,13 +63,25 @@ class VMAF:
                 video_data.input_filename.command(*source_start_end_frame)
             )
 
-        ffmpeg_command.append("ffmpeg")
+        ffmpeg_command.append(" | ffmpeg")
 
         ffmpeg_command.append(f"-r {str(frame_rate)}")
-        ffmpeg_command.append(f"-i <(cat {compressed_video})")
+
+        command = (
+            f"cat {compressed_video}"
+            if isinstance(compressed_video, Path)
+            else f"{compressed_video}"
+        )
+        ffmpeg_command.append(f"-i <({command})")
 
         ffmpeg_command.append(f"-r {str(frame_rate)}")
-        ffmpeg_command.append(f"-i <(cat {video_data.input_filename})")
+
+        # command = (
+        #     f"cat {video_data.input_filename}"
+        #     if isinstance(video_data.input_filename, Path)
+        #     else f"{video_data.input_filename}"
+        # )
+        ffmpeg_command.append("-i -")
 
         # https://www.bannerbear.com/blog/how-to-trim-a-video-using-ffmpeg/#:~:text=You%20can%20trim%20the%20input%20video%20to%20a%20specific%20duration,the%20beginning%20of%20the%20video.&text=In%20the%20command%20above%2C%20%2Dvf,the%20duration%20to%203%20seconds.
         # https://stackoverflow.com/questions/67598772/right-way-to-use-vmaf-with-ffmpeg
@@ -91,7 +108,10 @@ class VMAF:
         print(f"FFMPEG COMMAND: {' '.join(ffmpeg_command)}")
         try:
             output_data = subprocess.run(
-                " ".join(ffmpeg_command), shell=True, check=True, capture_output=True
+                f"zsh -c '{' '.join(ffmpeg_command)}'",
+                shell=True,
+                check=True,
+                capture_output=True,
             )
             ffmpeg_output: str = output_data.stderr.decode()
         except FileNotFoundError as e:
@@ -105,10 +125,10 @@ class VMAF:
             [x for x in ffmpeg_output.splitlines() if "VMAF score" in x][0].split()[-1]
         )
 
-    @file_cache.cache()
+    # @file_cache.cache()
     def throughout_video(
         self,
-        video_data: v2_target_videoCRF.RawVideoData,
+        video_data: videodata.RawVideoData,
         compressed_video: Path | str,
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         threads_to_use: int = 6,
@@ -125,13 +145,29 @@ class VMAF:
                 video_data.input_filename.command(*source_start_end_frame)
             )
 
-        ffmpeg_command.append("ffmpeg")
+        ffmpeg_command.append(" | ffmpeg")
 
         ffmpeg_command.append(f"-r {str(frame_rate)}")
-        ffmpeg_command.append(f"-i <(cat {compressed_video})")
+
+        command = (
+            f"cat {compressed_video}"
+            if isinstance(compressed_video, Path)
+            else f"{compressed_video}"
+        )
+        ffmpeg_command.append(f"-i <({command})")
 
         ffmpeg_command.append(f"-r {str(frame_rate)}")
-        ffmpeg_command.append(f"-i <(cat {video_data.input_filename})")
+
+        # command = (
+        #     f"cat {video_data.input_filename}"
+        #     if isinstance(video_data.input_filename, Path)
+        #     else f"{video_data.input_filename}"
+        # )
+        ffmpeg_command.append("-i -")
+
+        LOG_FILE_NAME = f"log-{source_start_end_frame}.json".replace(" ", "").replace(
+            ",", ""
+        )
 
         ffmpeg_command.extend(
             [
@@ -148,17 +184,15 @@ class VMAF:
 
         try:
             print(f"RUNNNING COMMAND: {" ".join(ffmpeg_command)}")
-            _ = subprocess.run(" ".join(ffmpeg_command), shell=True, check=True)
+            _ = subprocess.run(
+                f"zsh -c '{' '.join(ffmpeg_command)}'", shell=True, check=True
+            )
         except FileNotFoundError as e:
             print("WARNING: FFMPEG NOT FOUND ON SYSTEM!!")
             raise e
         except subprocess.CalledProcessError as e:
             print("Process failed because did not return a successful return code.")
             raise e
-
-        LOG_FILE_NAME = f"log-{source_start_end_frame}.json".replace(" ", "").replace(
-            ",", ""
-        )
 
         with open(LOG_FILE_NAME, "r") as file:
             json_of_file: dict[str, list[dict[str, dict[str, int]]]] = json.loads(
@@ -225,19 +259,33 @@ class VMAF:
 #     ) -> int: ...
 
 
-def crop_black_bars_size(source_video_path: ffmpeg.accurate_seek | str) -> str:
-    source_video_path_data = ffmpeg.get_video_metadata(source_video_path)
-    ffmpeg_output = subprocess.getoutput(
-        (f'ffmpeg -i "{source_video_path}" -t 10 -vf cropdetect -f null -')
-        if isinstance(source_video_path, str)
-        else (
-            source_video_path.command(
-                None,
-                round(source_video_path_data.frame_rate * 20),  # 20 seconds in
-            )
-            + "ffmpeg -i - -vf cropdetect -f null -"
+def crop_black_bars_size(input_video_data: videodata.RawVideoData) -> str:
+    # source_video_path_data = ffmpeg.get_video_metadata(input_video_data)
+
+    try:
+        command = (
+            f"cat {input_video_data.input_filename}"
+            if isinstance(input_video_data.input_filename, Path)
+            else f"{input_video_data.input_filename}"
         )
-    )
+
+        ffmpeg_output = subprocess.run(
+            f'ffmpeg -i <("{command}") -t 10 -vf cropdetect -f null -',
+            check=True,
+            shell=True,
+        ).stdout.decode()
+    except Exception as e:
+        print("UNABLE TO FIND crop_black_bars_size DATA")
+        raise e
+    # if isinstance(input_video_data.input_filename, str)
+    # else (
+    #     input_video_data.vapoursynth_accurate_seek.command(
+    #         None,
+    #         round(source_video_path_data.frame_rate * 20),  # 20 seconds in
+    #     )
+    #     + "ffmpeg -i - -vf cropdetect -f null -"
+    # )
+
     data = [x for x in ffmpeg_output.splitlines() if "crop=" in x][-1]
 
     # get the last data point? (does the crop size ever change?) --> Need to test

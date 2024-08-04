@@ -6,13 +6,13 @@ import ffmpeg_heuristics
 import graph_generate
 import scene_detection
 import file_cache
+import videodata
 
 from rich import print
 from rich.progress import Progress, TimeElapsedColumn, track
 import concurrent.futures
 import os
 import time
-from hashlib import sha256
 
 from rich.console import Console
 # import pickle
@@ -24,63 +24,9 @@ progress = Progress(
 )
 
 
-def calculate_sha(text: str | bytes) -> str:
-    if isinstance(text, str):
-        sha_value = sha256(text.encode()).hexdigest()
-    else:
-        sha_value = sha256(text).hexdigest()
-    return sha_value
-
-
-@dataclass
-class vapoursynth_data:
-    vapoursynth_script: str
-    vapoursynth_seek_method: Literal["ffms2", "bs"]
-    crop_black_bars: bool = True
-
-
-type input_file = Path | ffmpeg.accurate_seek
-
-
-class RawVideoData:
-    def __init__(
-        self,
-        input_filename: Path,
-        output_filename: Path,
-        vapoursynth_script: vapoursynth_data | None,
-    ) -> None:
-        # vapoursynth_seek: ffmpeg.accurate_seek | None = None
-        # sha256_of_input: str | None = None
-
-        assert os.path.isfile(
-            input_filename
-        ), f"CRITICAL ERROR: {input_filename} Does Not Exist!!"
-
-        self.input_filename: Path | ffmpeg.accurate_seek = input_filename
-        self.output_filename: Path = output_filename
-        # self.vapoursynth_script: str = vapoursynth_script
-        # self.vapoursynth_seek_method = vapoursynth_seek_method
-        # self.crop_black_bars: bool = crop_black_bars
-
-        # def __post_init__(self):
-        with open(self.input_filename, "rb") as f:
-            self.sha256_of_input = calculate_sha(f.read())
-
-        if isinstance(vapoursynth_script, vapoursynth_data):
-            if vapoursynth_data.crop_black_bars:
-                vapoursynth_data.vapoursynth_script += f"\nclip = core.std.CropAbs(clip, {ffmpeg_heuristics.crop_black_bars_size(str(self.input_filename)).split("=")[-1].replace(":",",")})\n"
-
-            self.input_filename = ffmpeg.accurate_seek(
-                str(self.input_filename),
-                str(self.input_filename),
-                vapoursynth_data.vapoursynth_seek_method,
-                extra_commands=vapoursynth_data.vapoursynth_script,
-            )
-
-
 @dataclass
 class videoInputData:
-    videodata: RawVideoData
+    videodata: videodata.RawVideoData
     codec: ffmpeg.VideoCodec
     heuristic: ffmpeg_heuristics.heuristic
     minimum_scene_length_seconds: float
@@ -91,6 +37,7 @@ class videoInputData:
         "largest first"  # ensures that CPU always being used
     )
     make_comparison_with_blend_filter: bool = False
+    do_not_render_final_video: bool = False
 
 
 def compressing_video(video: videoInputData) -> None:
@@ -150,6 +97,24 @@ def compressing_video(video: videoInputData) -> None:
             video_section.end_frame,
             # video.videodata.vapoursynth_script.vapoursynth_seek,
         )
+
+        # TODO: add section for rendering video
+        if not video.do_not_render_final_video:
+            _ = ffmpeg.run_ffmpeg_command(
+                video.videodata,
+                Path(
+                    temporary_video_file_names(
+                        section,
+                        Path(),
+                    ),
+                ),
+                video_section_data.crf,
+                video.codec,
+                video_section.start_frame,
+                video_section.end_frame,
+                300,
+            )
+
         return (section, video_section, video_section_data)
 
     with concurrent.futures.ThreadPoolExecutor(
@@ -187,7 +152,7 @@ def compressing_video(video: videoInputData) -> None:
         with graph_generate.LinegraphImage(
             filename="video_graph",
             x_axis_name="frames",
-            title_of_graph=f"CRF & {video.heuristic.NAME} - {video.videodata.input_filename} to {video.videodata.output_filename} ({video.codec.NAME})",
+            title_of_graph=f"CRF & {video.heuristic.NAME} - {video.videodata.raw_input_filename} to {video.videodata.output_filename} ({video.codec.NAME})",
         ) as graph_instance:
             graph_instance.add_linegraph_left(
                 x_data=[
@@ -240,6 +205,23 @@ def compressing_video(video: videoInputData) -> None:
                 colour="blue",
             )
 
+    if not video.do_not_render_final_video:
+        ffmpeg.concatenate_video_files(
+            [
+                temporary_video_file_names(x, Path())
+                for x in range(len(raw_video_scenes))
+            ],
+            video.videodata.output_filename,
+        )
+
+        try:
+            _ = [
+                os.remove(temporary_video_file_names(x, Path()))
+                for x in range(len(raw_video_scenes))
+            ]
+        except Exception:
+            print("Error deleting temp files")
+
     # for x in range(len(video_scenes)):
     #     print(temporary_video_file_names(x))
     #     print(ffmpeg.get_video_metadata(temporary_video_file_names(x)))
@@ -263,13 +245,16 @@ def compressing_video(video: videoInputData) -> None:
 
     print(optimal_crf_list)
 
-    print(ffmpeg.get_video_metadata(video.videodata))
+    if video.do_not_render_final_video:
+        print(ffmpeg.get_video_metadata(video.videodata.input_filename))
+    else:
+        print(ffmpeg.get_video_metadata(video.videodata.output_filename))
     # print(ffmpeg.get_video_metadata(video.full_output_filename))
 
 
-def temporary_video_file_names(position: int, filepath: Path) -> Path:
+def temporary_video_file_names(position: int, filepath_for_render: Path) -> Path:
     # , extension: str = "mkv"
-    return filepath / Path(f"temp-{position}.mkv")
+    return filepath_for_render / Path(f"temp-{position}.mkv")
 
 
 @dataclass()
@@ -279,9 +264,12 @@ class compress_video_section_data:
     heuristic_throughout: list[float]
 
 
-@file_cache.cache()
+@file_cache.cache(
+    sub_directory=Path("videosection_crf"),
+    persistent_after_termination=True,  # False
+)
 def identify_videosection_optimal_crf(
-    video: RawVideoData,
+    video: videodata.RawVideoData,
     codec: ffmpeg.VideoCodec,
     heuristic: ffmpeg_heuristics.heuristic,
     frame_start: int,

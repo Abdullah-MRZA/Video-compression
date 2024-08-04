@@ -3,9 +3,10 @@ from pathlib import Path
 import file_cache
 import scenedetect as sd
 import ffmpeg
+import videodata
+
 
 # import v2_target_videoCRF
-from v2_target_videoCRF import RawVideoData
 
 
 @dataclass()
@@ -57,14 +58,15 @@ def _ensure_scene_length_is_larger_than_minimum_length(
 )
 def find_scenes(
     # video_path: str,
-    video_data: RawVideoData,
+    video_data: videodata.RawVideoData,
     minimum_length_scene_seconds: float,
 ) -> list[SceneData]:
     """
     Function that gets the frames of the different scenes in the video
     - for threshold, 27.0 is default value
     """
-    video = sd.open_video(str(video_data.input_filename))
+
+    video = sd.open_video(str(video_data.raw_input_filename))
     scene_manager = sd.SceneManager()
     # scene_manager.add_detector(sd.ContentDetector(threshold=threshold))
 
@@ -75,7 +77,7 @@ def find_scenes(
 
     _ = scene_manager.detect_scenes(video)
 
-    video_metadata = ffmpeg.get_video_metadata(video_data)
+    video_metadata = ffmpeg.get_video_metadata(video_data.input_filename)
 
     scene_data = [
         SceneData(
@@ -91,7 +93,6 @@ def find_scenes(
 
     if len(scene_data) == 0:
         scene_data = [SceneData(start_frame=0, end_frame=video_metadata.total_frames)]
-
     return scene_data
 
 

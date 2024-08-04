@@ -1,6 +1,4 @@
 import subprocess
-
-# from typing_extensions import override
 import file_cache
 
 # import ffmpeg_heuristics
@@ -27,8 +25,8 @@ import videodata
 # _ = install(show_locals=True)
 
 
-type VideoCodec = SVTAV1 | H264 | H265 | APPLE_HWENC_H265
-# type VideoCodec = SVTAV1 | H264 | H265
+# type VideoCodec = SVTAV1 | H264 | H265 | APPLE_HWENC_H265
+type VideoCodec = SVTAV1 | H264 | H265
 
 """
 there's also "process substitution" in many shells, roughly: `cat input | ffmpeg -i - … - | do_more`
@@ -299,11 +297,6 @@ class accurate_seek:
         end = f"-e {end_frame - 1}" if end_frame is not None else ""
         return f"vspipe {start} {end} -c y4m {self.filename_of_vpy} -"
 
-    # @override  # INFO: CHECK IF THIS IS GOOD
-    @typing.override
-    def __str__(self) -> str:
-        return self.command(None, None)
-
     def __exit__(self):
         try:
             os.remove(self.filename_of_vpy)
@@ -336,7 +329,7 @@ def run_ffmpeg_command(
 
     command.extend(
         [
-            "| ffmpeg",
+            "ffmpeg",
             "-hide_banner -loglevel error",
             f"-r {framerate}",
         ]
@@ -356,7 +349,7 @@ def run_ffmpeg_command(
         command.append(f"-g {keyframe_placement}")
 
     if output_file is None:
-        command.append("-f matroska -")
+        command.append("-")
         return " ".join(command)
 
     command.append(codec_information.output_file(str(output_file)))
@@ -377,10 +370,10 @@ def concatenate_video_files(
         _ = file.write("\n".join(f"file '{x}'" for x in list_of_video_files))
 
     print(
-        f'RUNNING COMMAND: ffmpeg -f concat -i video_list.txt -c copy -y "{output_filename_with_extension.name}"'
+        f'RUNNING COMMAND: ffmpeg -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"'
     )
     _ = subprocess.run(
-        f'ffmpeg -f concat -i video_list.txt -c copy -y "{output_filename_with_extension.name}"',
+        f'ffmpeg -f concat -i video_list.txt -c copy -y "{output_filename_with_extension}"',
         shell=True,
         check=True,
     )
@@ -417,7 +410,7 @@ class VideoMetadata:
 def get_video_metadata(
     # filename: str,
     # input_file_vapoursynth: accurate_seek | str,
-    video_data: pathlib.Path | accurate_seek,
+    video_data: videodata.RawVideoData,
 ) -> VideoMetadata:
     def make_video_metadata(json_data: dict[str, dict]) -> VideoMetadata:
         first_stream_with_video: dict[str, str | int] = [
@@ -452,8 +445,7 @@ def get_video_metadata(
             # bitrate=int(json_data["format"]["bit_rate"]),
         )
 
-    # command = video_data.input_filename
-    command = video_data
+    command = video_data.input_filename
     if isinstance(command, accurate_seek):
         command = f"{command.command(None, None)}"
     # elif isinstance(command, Path):
@@ -468,6 +460,9 @@ def get_video_metadata(
         shell=True,
         capture_output=True,
     ).stdout.decode()
+
+    input(data)
+    return
 
     json_data: dict = json.loads(data)
     # print("json data")
