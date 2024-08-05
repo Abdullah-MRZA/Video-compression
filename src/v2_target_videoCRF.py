@@ -37,14 +37,16 @@ class videoInputData:
         "largest first"  # ensures that CPU always being used
     )
     make_comparison_with_blend_filter: bool = False
-    do_not_render_final_video: bool = False
+    render_final_video: bool = False
 
 
 def compressing_video(video: videoInputData) -> None:
     with rich_console.status(
         f"Getting metadata of input file ({video.videodata.input_filename})"
     ):
-        input_filename_data = ffmpeg.get_video_metadata(video.videodata)
+        input_filename_data = ffmpeg.get_video_metadata(
+            video.videodata, video.videodata.input_filename
+        )
         print(input_filename_data)
 
     with rich_console.status("Calculating scenes"):
@@ -99,7 +101,7 @@ def compressing_video(video: videoInputData) -> None:
         )
 
         # TODO: add section for rendering video
-        if not video.do_not_render_final_video:
+        if video.render_final_video:
             _ = ffmpeg.run_ffmpeg_command(
                 video.videodata,
                 Path(
@@ -205,7 +207,7 @@ def compressing_video(video: videoInputData) -> None:
                 colour="blue",
             )
 
-    if not video.do_not_render_final_video:
+    if video.render_final_video:
         ffmpeg.concatenate_video_files(
             [
                 temporary_video_file_names(x, Path())
@@ -245,10 +247,11 @@ def compressing_video(video: videoInputData) -> None:
 
     print(optimal_crf_list)
 
-    if video.do_not_render_final_video:
-        print(ffmpeg.get_video_metadata(video.videodata.input_filename))
-    else:
-        print(ffmpeg.get_video_metadata(video.videodata.output_filename))
+    print(ffmpeg.get_video_metadata(video.videodata, video.videodata.input_filename))
+    if video.render_final_video:
+        print(
+            ffmpeg.get_video_metadata(video.videodata, video.videodata.output_filename)
+        )
     # print(ffmpeg.get_video_metadata(video.full_output_filename))
 
 

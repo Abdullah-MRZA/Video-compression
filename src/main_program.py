@@ -22,7 +22,7 @@ vapoursynth_script: str = "\n".join(
 
 def main() -> None:
     video_input = videodata.RawVideoData(
-        input_filename=Path("small.mp4"),
+        input_filename=Path("medium.mp4"),
         output_filename=Path("output-temp.mkv"),
         vapoursynth_script=videodata.vapoursynth_data(
             vapoursynth_script=vapoursynth_script,

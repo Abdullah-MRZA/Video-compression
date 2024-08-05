@@ -54,7 +54,9 @@ class VMAF:
     ) -> float:
         print("Running FFMPEG COMMAND for vmaf")
 
-        frame_rate = ffmpeg.get_video_metadata(video_data).frame_rate
+        frame_rate = ffmpeg.get_video_metadata(
+            video_data, video_data.input_filename
+        ).frame_rate
 
         ffmpeg_command: list[str] = []
 
@@ -136,7 +138,9 @@ class VMAF:
     ) -> list[float]:
         print("Running FFMPEG COMMAND for vmaf")
 
-        frame_rate = ffmpeg.get_video_metadata(video_data).frame_rate
+        frame_rate = ffmpeg.get_video_metadata(
+            video_data, video_data.input_filename
+        ).frame_rate
 
         ffmpeg_command: list[str] = []
 

@@ -75,9 +75,9 @@ def find_scenes(
     # scene_manager.add_detector(sd.AdaptiveDetector())
     # scene_manager.add_detector(sd.HashDetector())
 
-    _ = scene_manager.detect_scenes(video)
+    _ = scene_manager.detect_scenes(video, show_progress=True)
 
-    video_metadata = ffmpeg.get_video_metadata(video_data.input_filename)
+    video_metadata = ffmpeg.get_video_metadata(video_data, video_data.input_filename)
 
     scene_data = [
         SceneData(

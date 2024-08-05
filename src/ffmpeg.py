@@ -325,7 +325,9 @@ def run_ffmpeg_command(
     keyframe_placement: int | None,
     # input_file_script_seeking: accurate_seek,
 ) -> None | str:
-    framerate: float = get_video_metadata(input_file).frame_rate
+    framerate: float = get_video_metadata(
+        input_file, input_file.input_filename
+    ).frame_rate
     command: list[str] = []
 
     assert isinstance(
@@ -417,7 +419,8 @@ class VideoMetadata:
 def get_video_metadata(
     # filename: str,
     # input_file_vapoursynth: accurate_seek | str,
-    video_data: pathlib.Path | accurate_seek,
+    video_data: videodata.RawVideoData,
+    video_for_metadata: pathlib.Path | accurate_seek,
 ) -> VideoMetadata:
     def make_video_metadata(json_data: dict[str, dict]) -> VideoMetadata:
         first_stream_with_video: dict[str, str | int] = [
@@ -452,13 +455,18 @@ def get_video_metadata(
             # bitrate=int(json_data["format"]["bit_rate"]),
         )
 
+    assert isinstance(video_data, videodata.RawVideoData), "video_data is incorrect"
+
+    assert isinstance(video_for_metadata, accurate_seek) or isinstance(
+        video_for_metadata, pathlib.Path
+    ), "INCORRECT INPUT DATA"
+
     # command = video_data.input_filename
-    command = video_data
-    if isinstance(command, accurate_seek):
-        command = f"{command.command(None, None)}"
+    if isinstance(video_for_metadata, accurate_seek):
+        command = f"{video_for_metadata.command(None, None)}"
     # elif isinstance(command, Path):
     else:
-        command = f'cat "{command}"'
+        command = f'cat "{video_for_metadata}"'
 
     data = subprocess.run(
         f"zsh -c 'ffprobe -v quiet -print_format json -show_format -show_streams -count_frames <({command})'",
