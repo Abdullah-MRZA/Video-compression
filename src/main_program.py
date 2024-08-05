@@ -10,7 +10,7 @@ import videodata
 vapoursynth_script: str = "\n".join(
     [
         # "clip = core.fft3dfilter.FFT3DFilter(clip, sigma=1.5)",  # (Spatio-Temporal Denoisers)
-        # "clip = clip[::2]",  # (half frame rate)
+        "clip = clip[::2]",  # (half frame rate)
         # "clip = core.f3kdb.Deband(clip)",  # (Banding Reduction)
     ]
 )
@@ -38,13 +38,13 @@ def main() -> None:
         # ffmpeg.H264(preset="fast"),
         # ffmpeg.SVTAV1(preset=6, ACCEPTED_CRF_RANGE=range(35, 36)),
         ffmpeg.SVTAV1(preset=6),
-        ffmpeg_heuristics.VMAF(90),
+        ffmpeg_heuristics.VMAF(94),
         minimum_scene_length_seconds=1,
         audio_commands="-c:a libopus",
         multithreading_threads=3,
         scenes_length_sort="largest first",
         # make_comparison_with_blend_filter=False,  # fix
-        do_not_render_final_video=False,
+        render_final_video=False,
     )
 
     v2_target_videoCRF.compressing_video(video_data)

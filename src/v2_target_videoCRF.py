@@ -97,6 +97,10 @@ def compressing_video(video: videoInputData) -> None:
             video.heuristic,
             video_section.start_frame,
             video_section.end_frame,
+            # min(
+            #     video_section.end_frame,
+            #     video_section.start_frame + round(10 * input_filename_data.frame_rate),
+            # ),
             # video.videodata.vapoursynth_script.vapoursynth_seek,
         )
 
@@ -299,12 +303,8 @@ def identify_videosection_optimal_crf(
         assert data is not None, "Should never be None"
         return data
 
-    while (
-        current_crf := (top_crf_value + bottom_crf_value) // 2
-    ) not in all_heuristic_crf_values.keys():
-        while os.path.isfile("STOP.txt"):
-            time.sleep(1)
-
+    @file_cache.cache()
+    def _render_for_certain_crf(crf: int) -> float:
         crf_ffmpeg_command = ffmpeg.run_ffmpeg_command(
             video,
             None,
@@ -314,15 +314,22 @@ def identify_videosection_optimal_crf(
             frame_end,
             300,
         )
-
         current_heuristic = heuristic.summary_of_overall_video(
             video,
             expect_str(crf_ffmpeg_command),
             source_start_end_frame=(frame_start, frame_end),
             subsample=2,
         )
-
         print(current_heuristic)
+        return current_heuristic
+
+    while (
+        current_crf := (top_crf_value + bottom_crf_value) // 2
+    ) not in all_heuristic_crf_values.keys():
+        while os.path.isfile("STOP.txt"):
+            time.sleep(1)
+
+        current_heuristic = _render_for_certain_crf(current_crf)
 
         all_heuristic_crf_values.update({current_crf: current_heuristic})
 
