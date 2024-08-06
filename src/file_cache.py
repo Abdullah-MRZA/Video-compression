@@ -307,7 +307,11 @@ def store_cumulative_time(annotated_function: TCallable) -> TCallable:
 def print_times_of_functions():
     from rich import print
 
-    print(time_of_functions)
+    time_of_functions_list = sorted(
+        time_of_functions.items(), key=lambda x: x[1].total_time, reverse=True
+    )
+
+    print(time_of_functions_list)
 
 
 if __name__ == "__main__":

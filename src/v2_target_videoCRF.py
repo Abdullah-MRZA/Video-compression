@@ -101,7 +101,6 @@ def compressing_video(video: videoInputData) -> None:
             #     video_section.end_frame,
             #     video_section.start_frame + round(10 * input_filename_data.frame_rate),
             # ),
-            # video.videodata.vapoursynth_script.vapoursynth_seek,
         )
 
         # TODO: add section for rendering video
@@ -331,8 +330,8 @@ def identify_videosection_optimal_crf(
     while (
         current_crf := (top_crf_value + bottom_crf_value) // 2
     ) not in all_heuristic_crf_values.keys():
-        while os.path.isfile("STOP.txt"):
-            time.sleep(1)
+        # while os.path.isfile("STOP.txt"):
+        #     time.sleep(1)
 
         current_heuristic = _render_for_certain_crf(current_crf)
 
