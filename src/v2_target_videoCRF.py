@@ -251,8 +251,10 @@ def compressing_video(video: videoInputData) -> None:
 
     print(optimal_crf_list)
 
+    print("Input video metadata")
     print(ffmpeg.get_video_metadata(video.videodata, video.videodata.input_filename))
     if video.render_final_video:
+        print("Output video metadata")
         print(
             ffmpeg.get_video_metadata(video.videodata, video.videodata.output_filename)
         )
@@ -271,6 +273,7 @@ class compress_video_section_data:
     heuristic_throughout: list[float]
 
 
+@file_cache.store_cumulative_time
 @file_cache.cache(
     sub_directory=Path("videosection_crf"),
     persistent_after_termination=True,  # False
@@ -303,7 +306,9 @@ def identify_videosection_optimal_crf(
         assert data is not None, "Should never be None"
         return data
 
-    @file_cache.cache()
+    @file_cache.cache(
+        extra_info_in_shahash=f"{video}{codec}{heuristic}{frame_start}{frame_end}"
+    )
     def _render_for_certain_crf(crf: int) -> float:
         crf_ffmpeg_command = ffmpeg.run_ffmpeg_command(
             video,

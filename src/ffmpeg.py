@@ -311,6 +311,7 @@ class accurate_seek:
             print(f"WARNING: Unable to delete file: {self.filename_of_vpy}")
 
 
+@file_cache.store_cumulative_time
 def run_ffmpeg_command(
     # video data
     input_file: videodata.RawVideoData,
@@ -415,6 +416,7 @@ class VideoMetadata:
 
 
 # BUG: this function needs porting over (haven't done yet because cyclic import needs fixing)
+@file_cache.store_cumulative_time
 @file_cache.cache()
 def get_video_metadata(
     # filename: str,
@@ -626,6 +628,7 @@ def get_video_metadata(
 # }
 
 
+@file_cache.store_cumulative_time
 def visual_comparison_of_video_with_blend_filter(
     source_video_path_vapoursynth: accurate_seek,
     encoded_video_path: str,
@@ -665,6 +668,7 @@ def visual_comparison_of_video_with_blend_filter(
         print("ERROR FAILED TO OUTPUT VISUAL COMPARISON (with blend filter)")
 
 
+@file_cache.store_cumulative_time
 def combine_audio_and_subtitle_streams_from_another_video(
     input_file_name_with_extension: videodata.input_file_type,
     output_file_name_with_extension: pathlib.Path,

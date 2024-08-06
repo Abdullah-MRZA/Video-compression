@@ -44,6 +44,7 @@ class VMAF:
     IMPROVING_DIRECTION = +1
 
     # @file_cache.cache()
+    @file_cache.store_cumulative_time
     def summary_of_overall_video(
         self,
         video_data: videodata.RawVideoData,
@@ -128,6 +129,7 @@ class VMAF:
         )
 
     # @file_cache.cache()
+    @file_cache.store_cumulative_time
     def throughout_video(
         self,
         video_data: videodata.RawVideoData,

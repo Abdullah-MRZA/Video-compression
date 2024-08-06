@@ -35,9 +35,9 @@ def main() -> None:
         video_input,
         # ffmpeg.APPLE_HWENC_H265(bitdepth="p010le"),
         # ffmpeg.H265(preset="medium"),
-        # ffmpeg.H264(preset="fast"),
+        ffmpeg.H264(preset="fast"),
         # ffmpeg.SVTAV1(preset=6, ACCEPTED_CRF_RANGE=range(35, 36)),
-        ffmpeg.SVTAV1(preset=6),
+        # ffmpeg.SVTAV1(preset=6),
         ffmpeg_heuristics.VMAF(94),
         minimum_scene_length_seconds=1,
         audio_commands="-c:a libopus",
@@ -53,3 +53,4 @@ def main() -> None:
 if __name__ == "__main__":
     main()
     file_cache.cache_cleanup()
+    print(file_cache.print_times_of_functions())

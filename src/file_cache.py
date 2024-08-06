@@ -6,6 +6,8 @@ import pickle
 import inspect
 from hashlib import sha256
 from pathlib import Path
+import time
+from collections import defaultdict
 # import atexit
 # from tempfile import TemporaryFile
 
@@ -44,6 +46,7 @@ def cache(
     extension: str = "pickle",
     persistent_after_termination: bool = False,
     sub_directory: Path | None = None,
+    extra_info_in_shahash: str = "",
 ):
     def file_cache_decorator(annotated_function: TCallable) -> TCallable:
         @functools.wraps(annotated_function)
@@ -53,17 +56,18 @@ def cache(
                 inspect.getsource(annotated_function)
                 + "".join(str(x) for x in args)
                 + "".join(f"{x[0]}{x[1]}" for x in kwargs.items())
+                + extra_info_in_shahash
             )
 
-            function_signature_unique2 = calculate_sha(
-                inspect.getsource(annotated_function)
-                + "".join(str(x) for x in args)
-                + "".join(f"{x[0]}{x[1]}" for x in kwargs.items())
-            )
+            # function_signature_unique2 = calculate_sha(
+            #     inspect.getsource(annotated_function)
+            #     + "".join(str(x) for x in args)
+            #     + "".join(f"{x[0]}{x[1]}" for x in kwargs.items())
+            # )
 
-            assert (
-                function_signature_unique == function_signature_unique2
-            ), "sha issues!!"
+            # assert (
+            #     function_signature_unique == function_signature_unique2
+            # ), "sha issues!!"
 
             # print(">FINDING IN CACHE...")
             # cache_filename = f"{CACHE_DIRECTORY}/{prefix_name}cache-{function_signature_unique}.{extension}"
@@ -74,7 +78,11 @@ def cache(
             )
 
             if not os.path.exists(cache_filename.parent):
-                os.makedirs(cache_filename.parent)
+                try:
+                    os.makedirs(cache_filename.parent)
+                except FileExistsError:
+                    # actually did get this error, I'm guessing by multithreading
+                    print("File already exists")
 
             if matching_data := [
                 x for x in cache_data if x.cache_filename.name == cache_filename.name
@@ -85,7 +93,14 @@ def cache(
             if cache_filename.is_file():
                 with cache_filename.open("rb") as f:
                     recieved_value_data = pickle.load(f)
-                    cache_data.append(recieved_value_data)
+                    # cache_data.append(recieved_value_data)
+                    cache_data.append(
+                        data(
+                            cache_filename,
+                            recieved_value_data,
+                            delete_afterwards=not persistent_after_termination,
+                        )
+                    )
                     return recieved_value_data.cache_data
 
             # if sub_directory is not None:
@@ -253,6 +268,48 @@ def cache_cleanup():
 #     return decorator
 #
 #
+
+
+@dataclass
+class timedata:
+    total_time: float
+    number_of_calls: int
+
+
+# time_of_functions: defaultdict[str, float] = defaultdict()
+time_of_functions: dict[str, timedata] = {}
+
+
+def store_cumulative_time(annotated_function: TCallable) -> TCallable:
+    @functools.wraps(annotated_function)
+    def wrapper(*args, **kwargs):
+        global time_of_functions
+
+        start_time = time.perf_counter()
+        recieved_value = annotated_function(*args, **kwargs)
+        elapsed_time = time.perf_counter() - start_time
+
+        # time_of_functions.append(timedata(annotated_function.__name__, elapsed_time))
+        try:
+            time_of_functions[annotated_function.__name__] = timedata(
+                time_of_functions[annotated_function.__name__].total_time
+                + elapsed_time,
+                time_of_functions[annotated_function.__name__].number_of_calls + 1,
+            )
+        except KeyError:
+            time_of_functions[annotated_function.__name__] = timedata(elapsed_time, 1)
+
+        return recieved_value
+
+    return cast(TCallable, wrapper)
+
+
+def print_times_of_functions():
+    from rich import print
+
+    print(time_of_functions)
+
+
 if __name__ == "__main__":
     import time
 

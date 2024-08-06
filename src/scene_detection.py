@@ -51,6 +51,7 @@ def _ensure_scene_length_is_larger_than_minimum_length(
     return scene_data
 
 
+@file_cache.store_cumulative_time
 @file_cache.cache(
     prefix_name="SceneCache-",
     persistent_after_termination=True,
