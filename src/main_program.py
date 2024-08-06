@@ -1,4 +1,5 @@
 from pathlib import Path
+import time
 import ffmpeg
 import v2_target_videoCRF
 import ffmpeg_heuristics
@@ -10,7 +11,7 @@ import videodata
 vapoursynth_script: str = "\n".join(
     [
         # "clip = core.fft3dfilter.FFT3DFilter(clip, sigma=1.5)",  # (Spatio-Temporal Denoisers)
-        "clip = clip[::2]",  # (half frame rate)
+        # "clip = clip[::2]",  # (half frame rate)
         # "clip = core.f3kdb.Deband(clip)",  # (Banding Reduction)
     ]
 )
@@ -22,7 +23,7 @@ vapoursynth_script: str = "\n".join(
 
 def main() -> None:
     video_input = videodata.RawVideoData(
-        input_filename=Path("medium.mp4"),
+        input_filename=Path("slimmoana.mp4"),
         output_filename=Path("output-temp.mkv"),
         vapoursynth_script=videodata.vapoursynth_data(
             vapoursynth_script=vapoursynth_script,
@@ -35,23 +36,26 @@ def main() -> None:
         video_input,
         # ffmpeg.APPLE_HWENC_H265(bitdepth="p010le"),
         # ffmpeg.H265(preset="medium"),
-        ffmpeg.H264(preset="fast"),
-        # ffmpeg.SVTAV1(preset=6, ACCEPTED_CRF_RANGE=range(35, 36)),
-        # ffmpeg.SVTAV1(preset=6),
-        # ffmpeg_heuristics.VMAF(94),
-        ffmpeg_heuristics.VMAF(60),
+        # ffmpeg.H264(preset="slower"),
+        ffmpeg.SVTAV1(preset=6),
+        # ffmpeg.SVTAV1(preset=6, film_grain=ffmpeg.SVTAV1(0).Filmgrain(4, False)),
+        ffmpeg_heuristics.VMAF(94),
         minimum_scene_length_seconds=1,
         audio_commands="-c:a libopus",
         multithreading_threads=3,
         scenes_length_sort="largest first",
         # make_comparison_with_blend_filter=False,  # fix
-        render_final_video=False,
+        render_final_video=True,
     )
 
     v2_target_videoCRF.compressing_video(video_data)
 
 
 if __name__ == "__main__":
+    start_time = time.perf_counter()
     main()
     file_cache.cache_cleanup()
-    print(file_cache.print_times_of_functions())
+    file_cache.print_times_of_functions()
+    elapsed_time = time.perf_counter() - start_time
+
+    print(f"\n\nOverall elapsed time: {elapsed_time}")

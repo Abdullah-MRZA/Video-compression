@@ -1,4 +1,6 @@
+import enum
 import subprocess
+from typing_extensions import Literal
 
 # from typing_extensions import override
 import file_cache
@@ -39,43 +41,45 @@ generate… at which point named pipes are also on the table.
 """
 
 
-@dataclasses.dataclass()
-class SVTAV1PSY:
-    preset: int = 8
-    tune: typing.Literal["2", "3"] = "2"
-
-    @dataclasses.dataclass()
-    class Filmgrain:
-        film_grain: int
-        film_grain_denoise: bool
-
-    film_grain: None | Filmgrain = None
-    bitdepth: typing.Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
-
-    ACCEPTED_CRF_RANGE: range = range(0, 63 + 1, 1)
-    NAME = "SVTAV1-PSY"
-    BETTER_QUALITY = -1
-
-    # BUG: TODO complete these functions
-    def to_subprocess_command(self, crf: int) -> list[str]:
-        command = [
-            "-c:v libsvtav1",
-            f"-preset {self.preset}",
-            f"-pix_fmt {self.bitdepth}",
-            f"-crf {crf}",
-        ]
-
-        if self.film_grain is not None:
-            command.append(f"-svtav1-params film-grain={self.film_grain.film_grain}")
-            command.append(f"film-grain-denoise={self.film_grain.film_grain_denoise}")
-
-        command.append(f"-svtav1-params tune={["subjective", "PSNR"].index(self.tune)}")
-
-        return command
-
-    # TODO: pipe into standalone encoder
-    def output_file(self, output_filename: str) -> str:
-        return f'"{output_filename}"'
+# @dataclasses.dataclass()
+# class SVTAV1PSY:
+#     preset: int = 8
+#     tune: typing.Literal["2", "3"] = "2"
+#
+#     @dataclasses.dataclass()
+#     class Filmgrain:
+#         film_grain: int
+#         film_grain_denoise: bool
+#
+#     film_grain: None | Filmgrain = None
+#     bitdepth: typing.Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
+#
+#     ACCEPTED_CRF_RANGE: range = range(0, 63 + 1, 1)
+#     NAME = "SVTAV1-PSY"
+#     BETTER_QUALITY = -1
+#
+#     def to_subprocess_command(self, crf: int) -> list[str]:
+#         return ["-c:v copy"]
+#
+#     # BUG: TODO complete these functions
+#     # TODO: pipe into standalone encoder
+#     def output_file(self, output_filename: str, crf_value: int) -> str:
+#         command = [
+#             "-c:v libsvtav1",
+#             f"-preset {self.preset}",
+#             f"-pix_fmt {self.bitdepth}",
+#             f"-crf {crf_value}",
+#         ]
+#
+#         if self.film_grain is not None:
+#             command.append(f"-svtav1-params film-grain={self.film_grain.film_grain}")
+#             command.append(
+#                 f"-svtav1-params film-grain-denoise={self.film_grain.film_grain_denoise}"
+#             )
+#
+#         command.append(f"-svtav1-params tune={["subjective", "PSNR"].index(self.tune)}")
+#         # return f'"{output_filename}"'
+#         return
 
 
 @dataclasses.dataclass()
@@ -103,15 +107,19 @@ class SVTAV1:
             f"-crf {crf}",
         ]
 
-        if self.film_grain is not None:
-            command.append(f"-svtav1-params film-grain={self.film_grain.film_grain}")
-            command.append(f"film-grain-denoise={self.film_grain.film_grain_denoise}")
+        svtav1params: list[str] = [f"tune={["subjective", "PSNR"].index(self.tune)}"]
 
-        command.append(f"-svtav1-params tune={["subjective", "PSNR"].index(self.tune)}")
+        if self.film_grain is not None:
+            svtav1params.append(f"film-grain={self.film_grain.film_grain}")
+            svtav1params.append(
+                f"film-grain-denoise={int(self.film_grain.film_grain_denoise)}"
+            )
+
+        command.append(f"-svtav1-params {':'.join(svtav1params)}")
 
         return command
 
-    def output_file(self, output_filename: str) -> str:
+    def output_file(self, output_filename: str, crf_value: int) -> str:
         return f'"{output_filename}"'
 
 
@@ -179,7 +187,7 @@ class H264:
 
         return command
 
-    def output_file(self, output_filename: str) -> str:
+    def output_file(self, output_filename: str, crf_value: int) -> str:
         return f'"{output_filename}"'
 
 
@@ -232,7 +240,7 @@ class H265:
 
         return command
 
-    def output_file(self, output_filename: str) -> str:
+    def output_file(self, output_filename: str, crf_value: int) -> str:
         return f'"{output_filename}"'
 
 
@@ -266,7 +274,7 @@ class APPLE_HWENC_H265:  # BUG: Faulty concatenation of video files --> unusable
 
         return command
 
-    def output_file(self, output_filename: str) -> str:
+    def output_file(self, output_filename: str, crf_value: int) -> str:
         return f'"{output_filename}"'
 
 
@@ -315,7 +323,7 @@ class accurate_seek:
 def run_ffmpeg_command(
     # video data
     input_file: videodata.RawVideoData,
-    output_file: pathlib.Path | None,
+    output_file: pathlib.Path | Literal["get bytes data", "get ffmpeg string"],
     # CRF used
     crf_value: int,
     # compression data
@@ -325,7 +333,7 @@ def run_ffmpeg_command(
     # crop_black_bars: bool,
     keyframe_placement: int | None,
     # input_file_script_seeking: accurate_seek,
-) -> None | str:
+) -> subprocess.CompletedProcess[bytes] | str:
     framerate: float = get_video_metadata(
         input_file, input_file.input_filename
     ).frame_rate
@@ -358,11 +366,16 @@ def run_ffmpeg_command(
     if keyframe_placement is not None:
         command.append(f"-g {keyframe_placement}")
 
-    if output_file is None:
+    if output_file == "get ffmpeg string":
         command.append("-f matroska -")
         return " ".join(command)
+    elif output_file == "get bytes data":
+        command.append("-f matroska -")
+        return subprocess.run(
+            " ".join(command), shell=True, check=True, capture_output=True
+        )
 
-    command.append(codec_information.output_file(str(output_file)))
+    command.append(codec_information.output_file(str(output_file), crf_value))
 
     print("FFMPEG COMMAND --> " + " ".join(command))
     _ = subprocess.run(" ".join(command), shell=True, check=True)
@@ -417,7 +430,7 @@ class VideoMetadata:
 
 # BUG: this function needs porting over (haven't done yet because cyclic import needs fixing)
 @file_cache.store_cumulative_time
-@file_cache.cache()
+@file_cache.cache(persistent_after_termination=True)
 def get_video_metadata(
     # filename: str,
     # input_file_vapoursynth: accurate_seek | str,

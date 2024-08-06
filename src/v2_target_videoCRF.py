@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from subprocess import CompletedProcess
 from typing import Literal
 import ffmpeg
 import ffmpeg_heuristics
@@ -103,14 +104,13 @@ def compressing_video(video: videoInputData) -> None:
             # ),
         )
 
-        # TODO: add section for rendering video
         if video.render_final_video:
             _ = ffmpeg.run_ffmpeg_command(
                 video.videodata,
                 Path(
                     temporary_video_file_names(
                         section,
-                        Path(),
+                        Path("temporary_cache_dir"),
                     ),
                 ),
                 video_section_data.crf,
@@ -213,7 +213,7 @@ def compressing_video(video: videoInputData) -> None:
     if video.render_final_video:
         ffmpeg.concatenate_video_files(
             [
-                temporary_video_file_names(x, Path())
+                temporary_video_file_names(x, Path("temporary_cache_dir"))
                 for x in range(len(raw_video_scenes))
             ],
             video.videodata.output_filename,
@@ -221,7 +221,7 @@ def compressing_video(video: videoInputData) -> None:
 
         try:
             _ = [
-                os.remove(temporary_video_file_names(x, Path()))
+                os.remove(temporary_video_file_names(x, Path("temporary_cache_dir")))
                 for x in range(len(raw_video_scenes))
             ]
         except Exception:
@@ -301,9 +301,10 @@ def identify_videosection_optimal_crf(
     #     assert data is not None, "Should never be None"
     #     return data
 
-    def expect_str(data: str | None) -> str:
-        assert data is not None, "Should never be None"
-        return data
+    def expect_str(data: str | CompletedProcess[bytes] | None) -> str:
+        if isinstance(data, str):
+            return data
+        raise ValueError("Should never be None")
 
     @file_cache.cache(
         extra_info_in_shahash=f"{video}{codec}{heuristic}{frame_start}{frame_end}"
@@ -311,7 +312,7 @@ def identify_videosection_optimal_crf(
     def _render_for_certain_crf(crf: int) -> float:
         crf_ffmpeg_command = ffmpeg.run_ffmpeg_command(
             video,
-            None,
+            "get ffmpeg string",
             current_crf,
             codec,
             frame_start,
@@ -358,7 +359,7 @@ def identify_videosection_optimal_crf(
         expect_str(
             ffmpeg.run_ffmpeg_command(
                 video,
-                None,
+                "get ffmpeg string",
                 current_crf,
                 codec,
                 frame_start,
