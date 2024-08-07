@@ -70,25 +70,6 @@ def find_scenes(
 
     try:
         import scenedetect as sd
-
-        video = sd.open_video(str(video_data.raw_input_filename))
-        scene_manager = sd.SceneManager()
-        # scene_manager.add_detector(sd.ContentDetector(threshold=threshold))
-
-        scene_manager.add_detector(sd.ContentDetector())
-        # scene_manager.add_detector(sd.ThresholdDetector())
-        # scene_manager.add_detector(sd.AdaptiveDetector())
-        # scene_manager.add_detector(sd.HashDetector())
-
-        _ = scene_manager.detect_scenes(video, show_progress=True)
-
-        scene_data = [
-            SceneData(
-                start_frame=x[0].get_frames(),
-                end_frame=x[1].get_frames(),
-            )
-            for x in scene_manager.get_scene_list()
-        ]
     # except ModuleNotFoundError:
     except Exception:
         CSV_FILENAME = f"{video_data.raw_input_filename.stem}-Scenes.csv"
@@ -112,6 +93,25 @@ def find_scenes(
         except:
             print("scenedetect CSV intermediate file didn't delete")
         return scene_data
+
+    video = sd.open_video(str(video_data.raw_input_filename))
+    scene_manager = sd.SceneManager()
+    # scene_manager.add_detector(sd.ContentDetector(threshold=threshold))
+
+    scene_manager.add_detector(sd.ContentDetector())
+    # scene_manager.add_detector(sd.ThresholdDetector())
+    # scene_manager.add_detector(sd.AdaptiveDetector())
+    # scene_manager.add_detector(sd.HashDetector())
+
+    _ = scene_manager.detect_scenes(video, show_progress=True)
+
+    scene_data = [
+        SceneData(
+            start_frame=x[0].get_frames(),
+            end_frame=x[1].get_frames(),
+        )
+        for x in scene_manager.get_scene_list()
+    ]
 
     video_metadata = ffmpeg.get_video_metadata(video_data, video_data.input_filename)
 
