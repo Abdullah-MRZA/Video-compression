@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import subprocess
 import file_cache
@@ -105,6 +106,11 @@ def find_scenes(
 
                 linedata = line.split(",")
                 scene_data.append(SceneData(int(linedata[1]), int(linedata[4])))
+
+        try:
+            os.remove(CSV_FILENAME)
+        except:
+            print("scenedetect CSV intermediate file didn't delete")
         return scene_data
 
     video_metadata = ffmpeg.get_video_metadata(video_data, video_data.input_filename)
