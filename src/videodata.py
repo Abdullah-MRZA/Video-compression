@@ -41,7 +41,7 @@ class RawVideoData:
         ), f"CRITICAL ERROR: {input_filename} Does Not Exist!!"
 
         self.input_filename: Path | ffmpeg.accurate_seek = input_filename
-        self.raw_input_filename: Path | ffmpeg.accurate_seek = input_filename
+        self.raw_input_filename: Path = input_filename
         self.output_filename: Path = output_filename
         # self.vapoursynth_script: str = vapoursynth_script
         # self.vapoursynth_seek_method = vapoursynth_seek_method

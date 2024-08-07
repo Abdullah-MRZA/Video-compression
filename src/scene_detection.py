@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
+import subprocess
 import file_cache
-import scenedetect as sd
 import ffmpeg
 import videodata
 
@@ -67,26 +67,47 @@ def find_scenes(
     - for threshold, 27.0 is default value
     """
 
-    video = sd.open_video(str(video_data.raw_input_filename))
-    scene_manager = sd.SceneManager()
-    # scene_manager.add_detector(sd.ContentDetector(threshold=threshold))
+    try:
+        import scenedetect as sd
 
-    scene_manager.add_detector(sd.ContentDetector())
-    # scene_manager.add_detector(sd.ThresholdDetector())
-    # scene_manager.add_detector(sd.AdaptiveDetector())
-    # scene_manager.add_detector(sd.HashDetector())
+        video = sd.open_video(str(video_data.raw_input_filename))
+        scene_manager = sd.SceneManager()
+        # scene_manager.add_detector(sd.ContentDetector(threshold=threshold))
 
-    _ = scene_manager.detect_scenes(video, show_progress=True)
+        scene_manager.add_detector(sd.ContentDetector())
+        # scene_manager.add_detector(sd.ThresholdDetector())
+        # scene_manager.add_detector(sd.AdaptiveDetector())
+        # scene_manager.add_detector(sd.HashDetector())
+
+        _ = scene_manager.detect_scenes(video, show_progress=True)
+
+        scene_data = [
+            SceneData(
+                start_frame=x[0].get_frames(),
+                end_frame=x[1].get_frames(),
+            )
+            for x in scene_manager.get_scene_list()
+        ]
+    # except ModuleNotFoundError:
+    except Exception:
+        CSV_FILENAME = f"{video_data.raw_input_filename.stem}-Scenes.csv"
+        _ = subprocess.run(
+            f"scenedetect --input '{video_data.raw_input_filename.name}' -m {minimum_length_scene_seconds} detect-adaptive list-scenes",
+            shell=True,
+            check=True,
+        )
+
+        with open(CSV_FILENAME, "r") as file:
+            scene_data: list[SceneData] = []
+            for i, line in enumerate(file.readlines()):
+                if i < 2:
+                    continue
+
+                linedata = line.split(",")
+                scene_data.append(SceneData(int(linedata[1]), int(linedata[4])))
+        return scene_data
 
     video_metadata = ffmpeg.get_video_metadata(video_data, video_data.input_filename)
-
-    scene_data = [
-        SceneData(
-            start_frame=x[0].get_frames(),
-            end_frame=x[1].get_frames(),
-        )
-        for x in scene_manager.get_scene_list()
-    ]
 
     scene_data = _ensure_scene_length_is_larger_than_minimum_length(
         scene_data, video_metadata.frame_rate, minimum_length_scene_seconds

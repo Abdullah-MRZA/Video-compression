@@ -8,13 +8,17 @@ A test for compressing videos extremely efficiently.
 > There is still a lot of work left to do, for a fully functional build.
 > At the moment, only MacOS and linux is supported, but support for windows is coming soon
 
-## Planned Features
+## Supported Features
 
 - [x] Target quality (eg VMAF, etc) instead of CRF guessing (partially incomplete)
+  - [x] Diskless caching for *videos*
 - [x] Video splitting based on scene changes
-- [x] Automatic cropping of black bars (**needs testing**)
-- [x] Local multithreading of rendering (for concurrent encodes)
+- [x] Local multithreading of rendering (for concurrent encodes --> makes encoding as fast as possible)
+  - [x] (with visual markings for progress)
 - [x] Recovery from crashes
+  - [x] Caching for not wasting encoding (could be further improved too)
+- [x] Powerful scripting support
+  - [x] Automatic cropping of black bars
 
 If there is a *feature* you would like to implement, or have any other way you could help, get in touch!
 
