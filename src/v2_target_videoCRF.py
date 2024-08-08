@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from subprocess import CompletedProcess
 from typing import Literal
+
+# from scenedetect import frame_timecode
 import ffmpeg
 import ffmpeg_heuristics
 import graph_generate
@@ -92,33 +94,30 @@ def compressing_video(video: videoInputData) -> None:
     ) -> tuple[int, scene_detection.SceneData, compress_video_section_data]:
         video_section_data = identify_videosection_optimal_crf(
             video.videodata,
+            Path("Temp.mkv") if video.render_final_video else None,
             # temporary_video_file_names(section, video.videodata.input_filename.parent),
             # input_filename_data,
             video.codec,
             video.heuristic,
             video_section.start_frame,
             video_section.end_frame,
-            # min(
-            #     video_section.end_frame,
-            #     video_section.start_frame + round(10 * input_filename_data.frame_rate),
-            # ),
         )
 
-        if video.render_final_video:
-            _ = ffmpeg.run_ffmpeg_command(
-                video.videodata,
-                Path(
-                    temporary_video_file_names(
-                        section,
-                        Path("temporary_cache_dir"),
-                    ),
-                ),
-                video_section_data.crf,
-                video.codec,
-                video_section.start_frame,
-                video_section.end_frame,
-                300,
-            )
+        # if video.render_final_video:
+        #     _ = ffmpeg.run_ffmpeg_command(
+        #         video.videodata,
+        #         Path(
+        #             temporary_video_file_names(
+        #                 section,
+        #                 Path("temporary_cache_dir"),
+        #             ),
+        #         ),
+        #         video_section_data.crf,
+        #         video.codec,
+        #         video_section.start_frame,
+        #         video_section.end_frame,
+        #         300,
+        #     )
 
         return (section, video_section, video_section_data)
 
@@ -211,11 +210,15 @@ def compressing_video(video: videoInputData) -> None:
             )
 
     if video.render_final_video:
+        filepaths = [x[1].filepath_of_final for x in optimal_crf_list]
+        clean_filepaths: list[Path] = []  # to fix lsp
+
+        for path in filepaths:
+            assert path is not None
+            clean_filepaths.append(path)
+
         ffmpeg.concatenate_video_files(
-            [
-                temporary_video_file_names(x, Path("temporary_cache_dir"))
-                for x in range(len(raw_video_scenes))
-            ],
+            clean_filepaths,
             video.videodata.output_filename,
         )
 
@@ -227,18 +230,19 @@ def compressing_video(video: videoInputData) -> None:
         except Exception:
             print("Error deleting temp files")
 
-    # for x in range(len(video_scenes)):
-    #     print(temporary_video_file_names(x))
-    #     print(ffmpeg.get_video_metadata(temporary_video_file_names(x)))
-    #     os.remove(temporary_video_file_names(x))
+        # for x in range(len(video_scenes)):
+        #     print(temporary_video_file_names(x))
+        #     print(ffmpeg.get_video_metadata(temporary_video_file_names(x)))
+        #     os.remove(temporary_video_file_names(x))
 
-    # with rich_console.status("Combining audio+subtitles from source video"):
-    #     ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
-    #         video.full_input_filename,
-    #         video.full_output_filename,
-    #         video.audio_commands,
-    #         video.subtitle_commands,
-    #     )
+        if input_filename_data.contains_audio:
+            with rich_console.status("Combining audio+subtitles from source video"):
+                ffmpeg.combine_audio_and_subtitle_streams_from_another_video(
+                    video.videodata.raw_input_filename,
+                    video.videodata.output_filename,
+                    video.audio_commands,
+                    video.subtitle_commands,
+                )
 
     # if video.make_comparison_with_blend_filter:
     #     with rich_console.status("Making a visual comparison with blend filter"):
@@ -248,10 +252,14 @@ def compressing_video(video: videoInputData) -> None:
     #             "visual_comparison.mp4",
     #         )
 
-    print(optimal_crf_list)
+    # print(optimal_crf_list)
 
     print("Input video metadata")
     print(ffmpeg.get_video_metadata(video.videodata, video.videodata.input_filename))
+    print("Raw Input video metadata")
+    print(
+        ffmpeg.get_video_metadata(video.videodata, video.videodata.raw_input_filename)
+    )
     if video.render_final_video:
         print("Output video metadata")
         print(
@@ -270,61 +278,101 @@ class compress_video_section_data:
     crf: int
     heuristic: float
     heuristic_throughout: list[float]
+    filepath_of_final: None | Path
 
 
 @file_cache.store_cumulative_time
 @file_cache.cache(
     sub_directory=Path("videosection_crf"),
-    persistent_after_termination=True,  # False
+    persistent_after_termination=False,  # False
 )
 def identify_videosection_optimal_crf(
     video: videodata.RawVideoData,
+    output_video_name: Path | None,
     codec: ffmpeg.VideoCodec,
     heuristic: ffmpeg_heuristics.heuristic,
     frame_start: int,
-    frame_end: int,
+    frame_end_raw: int,
 ) -> compress_video_section_data:
     """
     This function finds the optimal CRF value for a target quality heuristic
     This does not render the video itself, and is thus a pure function
     """
+    frame_end = int(
+        min(
+            frame_end_raw,
+            frame_end_raw
+            + round(
+                20 * ffmpeg.get_video_metadata(video, video.input_filename).frame_rate
+            ),
+        ),
+    )
     bottom_crf_value = min(codec.ACCEPTED_CRF_RANGE)
     top_crf_value = max(codec.ACCEPTED_CRF_RANGE)
 
     all_heuristic_crf_values: dict[int, float] = {}
-
-    # if not os.path.exists(
-    #     f"{full_input_filename_part}-{frame_start}-{frame_end}-{codec}.tempfile"
-    # ):
-
-    # def expect[T](data: T) -> T:
-    #     assert data is not None, "Should never be None"
-    #     return data
 
     def expect_str(data: str | CompletedProcess[bytes] | None) -> str:
         if isinstance(data, str):
             return data
         raise ValueError("Should never be None")
 
+    all_temp_files: list[Path] = []
+
+    def temp_vid_filename(
+        crf: int, local_frame_start: int, local_frame_end: int
+    ) -> Path:
+        assert output_video_name is not None
+        file_path = (
+            Path("temporary_cache_dir")
+            / Path("intermediatefiles")
+            / Path(
+                f"{crf} - {local_frame_start} - {local_frame_end} - {video.sha256_of_input} {output_video_name.name}"
+            )
+        )
+        if file_path not in all_temp_files:
+            all_temp_files.append(file_path)
+        if not os.path.exists(file_path.parent):
+            try:
+                os.makedirs(file_path.parent)
+            except FileExistsError:
+                print("dir already exists")
+        return file_path
+
     @file_cache.cache(
-        extra_info_in_shahash=f"{video}{codec}{heuristic}{frame_start}{frame_end}"
+        extra_info_in_shahash=f"{video}{codec}{heuristic}{frame_start}{frame_end}",
+        persistent_after_termination=True,
     )
     def _render_for_certain_crf(crf: int) -> float:
-        crf_ffmpeg_command = ffmpeg.run_ffmpeg_command(
+        temporary_ffmpeg_command = ffmpeg.run_ffmpeg_command(
             video,
-            "get ffmpeg string",
+            # "get ffmpeg string",
+            temp_vid_filename(crf, frame_start, frame_end)
+            if isinstance(output_video_name, Path)
+            else "get ffmpeg string",
             current_crf,
             codec,
             frame_start,
             frame_end,
             300,
         )
+
+        if temporary_ffmpeg_command is None:
+            temporary_ffmpeg_command = ""
+        assert (
+            isinstance(temporary_ffmpeg_command, str)
+            # or temporary_ffmpeg_command is None
+        ), "SHOULD BE STR OR NONE"
+
         current_heuristic = heuristic.summary_of_overall_video(
             video,
-            expect_str(crf_ffmpeg_command),
+            temp_vid_filename(crf, frame_start, frame_end)
+            if isinstance(output_video_name, Path)
+            else temporary_ffmpeg_command,
             source_start_end_frame=(frame_start, frame_end),
-            subsample=2,
+            subsample=1,
         )
+
         print(current_heuristic)
         return current_heuristic
 
@@ -354,24 +402,53 @@ def identify_videosection_optimal_crf(
         key=lambda x: abs(x[1] - heuristic.target_score),
     )
 
+    if (
+        output_video_name is not None
+        and not temp_vid_filename(closest_value[0], frame_start, frame_end_raw).exists()
+    ):  # in case of accidental deletion when restarting
+        _ = ffmpeg.run_ffmpeg_command(
+            video,
+            temp_vid_filename(closest_value[0], frame_start, frame_end_raw),
+            closest_value[0],
+            codec,
+            frame_start,
+            frame_end,
+            300,
+        )
+
     heuristic_throughout = heuristic.throughout_video(
         video,
         expect_str(
             ffmpeg.run_ffmpeg_command(
                 video,
                 "get ffmpeg string",
-                current_crf,
+                closest_value[0],
                 codec,
                 frame_start,
-                frame_end,
+                frame_end_raw,
                 300,
             )
-        ),
+        )
+        if output_video_name is None
+        else temp_vid_filename(closest_value[0], frame_start, frame_end_raw),
         source_start_end_frame=(frame_start, frame_end),
         subsample=1,
     )
 
-    return compress_video_section_data(*closest_value, heuristic_throughout)
+    for filepath in all_temp_files:
+        if filepath == temp_vid_filename(closest_value[0], frame_start, frame_end_raw):
+            continue
+
+        os.remove(filepath.resolve())
+        # except Exception:
+        #     print("could not delete other temporary filepaths")
+
+    filepath = (
+        temp_vid_filename(closest_value[0], frame_start, frame_end_raw)
+        if output_video_name
+        else None
+    )
+    return compress_video_section_data(*closest_value, heuristic_throughout, filepath)
 
 
 if __name__ == "__main__":

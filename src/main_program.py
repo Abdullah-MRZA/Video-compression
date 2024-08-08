@@ -23,7 +23,7 @@ vapoursynth_script: str = "\n".join(
 
 def main() -> None:
     video_input = videodata.RawVideoData(
-        input_filename=Path("small.mp4"),
+        input_filename=Path("slimmoana.mp4"),
         output_filename=Path("output-temp.mkv"),
         vapoursynth_script=videodata.vapoursynth_data(
             vapoursynth_script=vapoursynth_script,
@@ -39,10 +39,10 @@ def main() -> None:
         # ffmpeg.H264(preset="slower"),
         ffmpeg.SVTAV1(preset=6),
         # ffmpeg.SVTAV1(preset=6, film_grain=ffmpeg.SVTAV1(0).Filmgrain(4, False)),
-        ffmpeg_heuristics.VMAF(94),
-        minimum_scene_length_seconds=1,
+        ffmpeg_heuristics.VMAF(95),
+        minimum_scene_length_seconds=0.2,
         audio_commands="-c:a libopus",
-        multithreading_threads=3,
+        multithreading_threads=4,
         scenes_length_sort="largest first",
         # make_comparison_with_blend_filter=False,  # fix
         render_final_video=True,

@@ -5,6 +5,7 @@ import ffmpeg
 
 # import ffmpeg_heuristics
 from pathlib import Path
+import subprocess
 import os
 
 
@@ -52,8 +53,8 @@ class RawVideoData:
             self.sha256_of_input = calculate_sha(f.read())
 
         if isinstance(vapoursynth_script, vapoursynth_data):
-            # if vapoursynth_data.crop_black_bars:
-            #     vapoursynth_data.vapoursynth_script += f"\nclip = core.std.CropAbs(clip, {ffmpeg_heuristics.crop_black_bars_size(str(self.input_filename)).split("=")[-1].replace(":",", ")})\n"
+            if vapoursynth_script.crop_black_bars:
+                vapoursynth_script.vapoursynth_script += f"\nclip = core.std.CropAbs(clip, {crop_black_bars_size(self.input_filename).split("=")[-1].replace(":",", ")})\n"
 
             self.input_filename = ffmpeg.accurate_seek(
                 str(self.input_filename),
@@ -65,3 +66,41 @@ class RawVideoData:
     @override
     def __str__(self) -> str:
         return f"RawVideoData('{self.input_filename}', '{self.raw_input_filename}', '{self.output_filename}')"
+
+
+# def crop_black_bars_size(input_video_data: videodata.RawVideoData) -> str:
+def crop_black_bars_size(input_video: Path) -> str:
+    # source_video_path_data = ffmpeg.get_video_metadata(input_video_data)
+
+    try:
+        # command = (
+        #     f'cat "{input_video_data.input_filename}"'
+        #     if isinstance(input_video_data.input_filename, Path)
+        #     else f"{input_video_data.input_filename}"
+        # )
+
+        ffmpeg_output = subprocess.run(
+            # f'ffmpeg -i <("{command}") -t 10 -vf cropdetect -f null -',
+            f"ffmpeg -i {input_video} -t 10 -vf cropdetect -f null -",
+            check=True,
+            shell=True,
+            capture_output=True,
+        ).stderr.decode()
+        # _ = input(ffmpeg_output.stdout.decode())
+        # _ = input(ffmpeg_output.stderr.decode())
+    except Exception as e:
+        print("UNABLE TO FIND crop_black_bars_size DATA")
+        raise e
+    # if isinstance(input_video_data.input_filename, str)
+    # else (
+    #     input_video_data.vapoursynth_accurate_seek.command(
+    #         None,
+    #         round(source_video_path_data.frame_rate * 20),  # 20 seconds in
+    #     )
+    #     + "ffmpeg -i - -vf cropdetect -f null -"
+    # )
+
+    data = [x for x in ffmpeg_output.splitlines() if "crop=" in x][-1]
+
+    # get the last data point? (does the crop size ever change?) --> Need to test
+    return data.rsplit(maxsplit=1)[-1]

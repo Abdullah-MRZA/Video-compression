@@ -332,7 +332,7 @@ def run_ffmpeg_command(
     # crop_black_bars: bool,
     keyframe_placement: int | None,
     # input_file_script_seeking: accurate_seek,
-) -> subprocess.CompletedProcess[bytes] | str:
+) -> subprocess.CompletedProcess[bytes] | str | None:
     framerate: float = get_video_metadata(
         input_file, input_file.input_filename
     ).frame_rate
@@ -392,10 +392,10 @@ def concatenate_video_files(
         _ = file.write("\n".join(f"file '{x}'" for x in list_of_video_files))
 
     print(
-        f'RUNNING COMMAND: ffmpeg -f concat -i video_list.txt -c copy -y "{output_filename_with_extension.name}"'
+        f'RUNNING COMMAND: ffmpeg -f concat -safe 0 -i video_list.txt -c copy -y "{output_filename_with_extension.name}"'
     )
     _ = subprocess.run(
-        f'ffmpeg -f concat -i video_list.txt -c copy -y "{output_filename_with_extension.name}"',
+        f'ffmpeg -f concat -safe 0  -i video_list.txt -c copy -y "{output_filename_with_extension.name}"',
         shell=True,
         check=True,
     )
@@ -429,7 +429,7 @@ class VideoMetadata:
 
 # BUG: this function needs porting over (haven't done yet because cyclic import needs fixing)
 @file_cache.store_cumulative_time
-@file_cache.cache(persistent_after_termination=True)
+@file_cache.cache(persistent_after_termination=False)
 def get_video_metadata(
     # filename: str,
     # input_file_vapoursynth: accurate_seek | str,
@@ -477,13 +477,16 @@ def get_video_metadata(
 
     # command = video_data.input_filename
     if isinstance(video_for_metadata, accurate_seek):
-        command = f"{video_for_metadata.command(None, None)}"
+        command = f"<({video_for_metadata.command(None, None)})"
     # elif isinstance(command, Path):
+    # elif isinstance(video_for_metadata, pathlib.Path):
+    #     command = f'"{video_for_metadata}"'
     else:
-        command = f'cat "{video_for_metadata}"'
+        command = f'"{video_for_metadata}"'
+        # command = f'<(cat "{video_for_metadata})"'
 
     data = subprocess.run(
-        f"zsh -c 'ffprobe -v quiet -print_format json -show_format -show_streams -count_frames <({command})'",
+        f"zsh -c 'ffprobe -v quiet -print_format json -show_format -show_streams -count_frames {command}'",
         # if isinstance(input_file_vapoursynth, str)
         # else f"{input_file_vapoursynth.command(None, None)} ffprobe -v quiet -print_format json -show_format -show_streams -count_frames -",
         check=True,
@@ -682,7 +685,8 @@ def visual_comparison_of_video_with_blend_filter(
 
 @file_cache.store_cumulative_time
 def combine_audio_and_subtitle_streams_from_another_video(
-    input_file_name_with_extension: videodata.input_file_type,
+    # input_file_name_with_extension: videodata.input_file_type,
+    input_file_name_with_extension: pathlib.Path,
     output_file_name_with_extension: pathlib.Path,
     audio_commands: str | None = None,
     subtitle_commands: str | None = None,
@@ -691,23 +695,24 @@ def combine_audio_and_subtitle_streams_from_another_video(
     Allows you to combine non-video streams from an input video (ie subtitles or audio) in a safe way
     """
     intermediate_file = "TEMP-INTERMEDIATE.mkv"
-    try:
-        commands: list[str] = []
-        if audio_commands is not None:
-            commands.append(audio_commands)
-        if subtitle_commands is not None:
-            commands.append(subtitle_commands)
+    # try:
+    commands: list[str] = []
+    if audio_commands is not None:
+        commands.append(audio_commands)
+    if subtitle_commands is not None:
+        commands.append(subtitle_commands)
 
-        _ = subprocess.run(
-            f"ffmpeg -i <(cat \"{input_file_name_with_extension}\") -i <(cat \"{output_file_name_with_extension}\") -map 1:v -map 0:a? -map 0:s? -c:v copy {' '.join(commands)} {intermediate_file}",
-            shell=True,
-            check=True,
-        )
+    _ = subprocess.run(
+        # f"zsh -c 'ffmpeg -i <(cat \"{input_file_name_with_extension}\") -i <(cat \"{output_file_name_with_extension}\") -map 1:v -map 0:a\\? -map 0:s\\? -c:v copy -y {' '.join(commands)} {intermediate_file}'",
+        f"zsh -c 'ffmpeg -i \"{input_file_name_with_extension}\" -i \"{output_file_name_with_extension}\" -map 1:v -map 0:a\\? -map 0:s\\? -c:v copy -y {' '.join(commands)} {intermediate_file}'",
+        shell=True,
+        check=True,
+    )
 
-        os.remove(output_file_name_with_extension)
-        os.rename(intermediate_file, output_file_name_with_extension)
-        os.remove(intermediate_file)
-    except Exception:
-        print(
-            "ERROR IN combine_audio_and_subtitle_streams_from_another_video() function"
-        )
+    os.remove(output_file_name_with_extension)
+    os.rename(intermediate_file, output_file_name_with_extension)
+    # os.remove(intermediate_file)
+    # except Exception:
+    #     _ = input(
+    #         "ERROR IN combine_audio_and_subtitle_streams_from_another_video() function"
+    #     )

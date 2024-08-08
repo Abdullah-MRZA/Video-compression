@@ -48,7 +48,7 @@ class VMAF:
     def summary_of_overall_video(
         self,
         video_data: videodata.RawVideoData,
-        compressed_video: Path | str,
+        compressed_video: Path | str,  # | subprocess.CompletedProcess[bytes],
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
@@ -70,12 +70,15 @@ class VMAF:
 
         ffmpeg_command.append(f"-r {str(frame_rate)}")
 
-        command = (
-            f"cat {compressed_video}"
-            if isinstance(compressed_video, Path)
-            else f"{compressed_video}"
-        )
-        ffmpeg_command.append(f"-i <({command})")
+        if isinstance(compressed_video, Path):
+            command = f'"{compressed_video}"'
+        else:  # elif isinstance(compressed_video, str):
+            # command = f'<(cat "{compressed_video}")'
+            command = f"<({compressed_video})"
+        # else:  # CompletedProcess[bytes]
+        #     command = "-"
+
+        ffmpeg_command.append(f"-i {command}")
 
         ffmpeg_command.append(f"-r {str(frame_rate)}")
 
@@ -115,6 +118,9 @@ class VMAF:
                 shell=True,
                 check=True,
                 capture_output=True,
+                # stdin=compressed_video.stdout
+                # if isinstance(compressed_video, subprocess.CompletedProcess)
+                # else None,
             )
             ffmpeg_output: str = output_data.stderr.decode()
         except FileNotFoundError as e:
@@ -155,12 +161,18 @@ class VMAF:
 
         ffmpeg_command.append(f"-r {str(frame_rate)}")
 
-        command = (
-            f"cat {compressed_video}"
-            if isinstance(compressed_video, Path)
-            else f"{compressed_video}"
-        )
-        ffmpeg_command.append(f"-i <({command})")
+        # command = (
+        #     f'cat "{compressed_video}"'
+        #     if isinstance(compressed_video, Path)
+        #     else f"{compressed_video}"
+        # )
+        # ffmpeg_command.append(f"-i <({command})")
+        if isinstance(compressed_video, Path):
+            command = f'"{compressed_video}"'
+        else:  # elif isinstance(compressed_video, str):
+            command = f"<({compressed_video})"
+
+        ffmpeg_command.append(f"-i {command}")
 
         ffmpeg_command.append(f"-r {str(frame_rate)}")
 
@@ -263,36 +275,3 @@ class VMAF:
 #         ffmpeg_path: str = "ffmpeg",
 #         threads_to_use: int = 2,  # "scales badly"
 #     ) -> int: ...
-
-
-def crop_black_bars_size(input_video_data: videodata.RawVideoData) -> str:
-    # source_video_path_data = ffmpeg.get_video_metadata(input_video_data)
-
-    try:
-        command = (
-            f"cat {input_video_data.input_filename}"
-            if isinstance(input_video_data.input_filename, Path)
-            else f"{input_video_data.input_filename}"
-        )
-
-        ffmpeg_output = subprocess.run(
-            f'ffmpeg -i <("{command}") -t 10 -vf cropdetect -f null -',
-            check=True,
-            shell=True,
-        ).stdout.decode()
-    except Exception as e:
-        print("UNABLE TO FIND crop_black_bars_size DATA")
-        raise e
-    # if isinstance(input_video_data.input_filename, str)
-    # else (
-    #     input_video_data.vapoursynth_accurate_seek.command(
-    #         None,
-    #         round(source_video_path_data.frame_rate * 20),  # 20 seconds in
-    #     )
-    #     + "ffmpeg -i - -vf cropdetect -f null -"
-    # )
-
-    data = [x for x in ffmpeg_output.splitlines() if "crop=" in x][-1]
-
-    # get the last data point? (does the crop size ever change?) --> Need to test
-    return data.rsplit(maxsplit=1)[-1]
