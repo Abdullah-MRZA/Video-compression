@@ -17,7 +17,6 @@ import os
 import time
 
 from rich.console import Console
-# import pickle
 
 rich_console = Console()
 progress = Progress(
@@ -25,7 +24,7 @@ progress = Progress(
     TimeElapsedColumn(),
 )
 
-SCENES_LENGTH_SORT_VALUES = Literal[
+_SCENES_LENGTH_SORT_VALUES = Literal[
     "chronological", "largest first", "smallest first", "interlaced"
 ]
 
@@ -39,7 +38,7 @@ class videoInputData:
     audio_commands: str = "-c:a copy"
     subtitle_commands: str = "-c:s copy"
     multithreading_threads: int = 2
-    scenes_length_sort: SCENES_LENGTH_SORT_VALUES = (
+    scenes_length_sort: _SCENES_LENGTH_SORT_VALUES = (
         "largest first"  # ensures that CPU always being used
     )
     make_comparison_with_blend_filter: bool = False
@@ -53,9 +52,13 @@ class compress_video_section_data:
     heuristic_throughout: list[float]
     filepath_of_final: None | Path
 
+    # for quick jumping
+    start_VMAF: float
+    end_crf: int
+
 
 def _sort_raw_scenes(
-    scenes: list[scene_detection.SceneData], order: SCENES_LENGTH_SORT_VALUES
+    scenes: list[scene_detection.SceneData], order: _SCENES_LENGTH_SORT_VALUES
 ) -> list[scene_detection.SceneData]:
     raw_video_scenes = [
         scene_detection.SceneData(x.start_frame, x.end_frame) for x in scenes
@@ -245,6 +248,35 @@ def _concatenate_rendered_videos_and_add_audio(
             )
 
 
+# def _make_comparison_with_blend_filter() -> None:
+#     with rich_console.status("Making a visual comparison with blend filter"):
+#         ffmpeg.visual_comparison_of_video_with_blend_filter(
+#             seeking_data_input_file,
+#             video.full_output_filename,
+#             "visual_comparison.mp4",
+#         )
+
+
+def _print_table_of_heuristic_vs_endcrf(
+    testing_all_data: list[compress_video_section_data],
+):
+    sorted_testing_all_data = sorted(testing_all_data, key=lambda x: x.start_VMAF)
+    print(len(sorted(testing_all_data, key=lambda x: x.start_VMAF)))
+    with graph_generate.LinegraphImage(
+        "VMAF to final CRF comparison test",
+        x_axis_name="initial VMAF",
+        title_of_graph="VMAF to final CRF comparison test",
+    ) as graph_instance:
+        graph_instance.add_linegraph_left(
+            x_data=[x.start_VMAF for x in sorted_testing_all_data],
+            y_data=[x.end_crf for x in sorted_testing_all_data],
+            name_of_axes="",
+            y_axis_range=range(0, 63),
+            marker="o",
+            colour="red",
+        )
+
+
 def compressing_video(video: videoInputData) -> None:
     with rich_console.status(
         f"Getting metadata of input file ({video.videodata.input_filename})"
@@ -274,15 +306,10 @@ def compressing_video(video: videoInputData) -> None:
             video, optimal_crf_list, raw_video_scenes
         )
 
-    # if video.make_comparison_with_blend_filter:
-    #     with rich_console.status("Making a visual comparison with blend filter"):
-    #         ffmpeg.visual_comparison_of_video_with_blend_filter(
-    #             seeking_data_input_file,
-    #             video.full_output_filename,
-    #             "visual_comparison.mp4",
-    #         )
+    _print_table_of_heuristic_vs_endcrf([x.scenedata for x in optimal_crf_list])
 
-    # print(optimal_crf_list)
+    # if video.make_comparison_with_blend_filter:
+    #     _make_comparison_with_blend_filter()
 
     print("Input video metadata")
     print(ffmpeg.get_video_metadata(video.videodata, video.videodata.input_filename))
@@ -295,39 +322,10 @@ def compressing_video(video: videoInputData) -> None:
         print(
             ffmpeg.get_video_metadata(video.videodata, video.videodata.output_filename)
         )
-    # print(ffmpeg.get_video_metadata(video.full_output_filename))
 
 
 def temporary_video_file_names(position: int, filepath_for_render: Path) -> Path:
-    # , extension: str = "mkv"
     return filepath_for_render / Path(f"temp-{position}.mkv")
-
-
-@dataclass
-class testing_data_prediction_data:
-    start_VMAF: float
-    end_crf: int
-
-
-testing_all_data: list[testing_data_prediction_data] = []
-
-
-def testing_print_data():
-    sorted_testing_all_data = sorted(testing_all_data, key=lambda x: x.start_VMAF)
-    print(len(sorted(testing_all_data, key=lambda x: x.start_VMAF)))
-    with graph_generate.LinegraphImage(
-        "VMAF to final CRF comparison test",
-        x_axis_name="initial VMAF",
-        title_of_graph="VMAF to final CRF comparison test",
-    ) as graph_instance:
-        graph_instance.add_linegraph_left(
-            x_data=[x.start_VMAF for x in sorted_testing_all_data],
-            y_data=[x.end_crf for x in sorted_testing_all_data],
-            name_of_axes="",
-            y_axis_range=range(0, 63),
-            marker="o",
-            colour="red",
-        )
 
 
 @file_cache.store_cumulative_time
@@ -414,10 +412,7 @@ def identify_videosection_optimal_crf(
 
         if temporary_ffmpeg_command is None:
             temporary_ffmpeg_command = ""
-        assert (
-            isinstance(temporary_ffmpeg_command, str)
-            # or temporary_ffmpeg_command is None
-        ), "SHOULD BE STR OR NONE"
+        assert isinstance(temporary_ffmpeg_command, str), "SHOULD BE STR OR NONE"
 
         current_heuristic = heuristic.summary_of_overall_video(
             video,
@@ -432,20 +427,15 @@ def identify_videosection_optimal_crf(
         return current_heuristic
 
     while (
-        # current_crf := (top_crf_value + bottom_crf_value) // 2
         current_crf := (top_crf_value + bottom_crf_value) // 2
     ) not in all_heuristic_crf_values.keys():
-        # while os.path.isfile("STOP.txt"):
-        #     time.sleep(1)
-
         current_heuristic = _render_for_certain_crf(current_crf)
 
         all_heuristic_crf_values.update({current_crf: current_heuristic})
 
-        if testing_start_VMAF is None:  # WARNING: TESTING
+        if testing_start_VMAF is None:
             testing_start_VMAF = current_heuristic
 
-        # if round(current_heuristic) == heuristic.target_score:
         if abs(current_heuristic - heuristic.target_score) <= 0.2:
             print(f"Exact match (of {heuristic.NAME} heuristic)")
             break
@@ -453,8 +443,6 @@ def identify_videosection_optimal_crf(
             bottom_crf_value = current_crf
         elif current_heuristic < heuristic.target_score:
             top_crf_value = current_crf
-
-        # _ = input()
 
     closest_value = min(
         all_heuristic_crf_values.items(),
