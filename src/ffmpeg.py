@@ -327,8 +327,8 @@ def run_ffmpeg_command(
     crf_value: int,
     # compression data
     codec_information: VideoCodec,
-    start_frame: int,
-    end_frame: int,
+    start_frame: int | None,
+    end_frame: int | None,
     # crop_black_bars: bool,
     keyframe_placement: int | None,
     # input_file_script_seeking: accurate_seek,

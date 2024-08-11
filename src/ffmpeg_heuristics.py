@@ -42,6 +42,7 @@ class VMAF:
     NAME: str = "VMAF"
     RANGE: range = range(0, 100 + 1)
     IMPROVING_DIRECTION = +1
+    CERTAIN_RANGE = range(0, 98 + 1)
 
     # @file_cache.cache()
     @file_cache.store_cumulative_time

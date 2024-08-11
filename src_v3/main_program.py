@@ -36,9 +36,9 @@ def main() -> None:
         video_input,
         # ffmpeg.APPLE_HWENC_H265(bitdepth="p010le"),
         # ffmpeg.H265(preset="fast"),
-        # ffmpeg.H264(preset="slower"),
-        # ffmpeg.SVTAV1(preset=6),
-        ffmpeg.SVTAV1(preset=6, ACCEPTED_CRF_RANGE=range(5, 50)),
+        # ffmpeg.H264(preset="faster"),
+        ffmpeg.SVTAV1(preset=6),
+        # ffmpeg.SVTAV1(preset=6, ACCEPTED_CRF_RANGE=range(5, 50)),
         # ffmpeg.SVTAV1(preset=6, film_grain=ffmpeg.SVTAV1(0).Filmgrain(4, False)),
         ffmpeg_heuristics.VMAF(94),
         minimum_scene_length_seconds=0,
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     main()
     file_cache.cache_cleanup()
     file_cache.print_times_of_functions()
-    v2_target_videoCRF.testing_print_data()
+    # v2_target_videoCRF.testing_print_data()
     elapsed_time = time.perf_counter() - start_time
 
     print(f"\n\nOverall elapsed time: {elapsed_time}")

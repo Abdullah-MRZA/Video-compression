@@ -1,0 +1,3 @@
+the initial VMAF is quite random, but the second level gives the pattern...
+
+The code is a bit painful to deal with atm, so I'm leaving this for now.
