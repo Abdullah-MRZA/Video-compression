@@ -37,14 +37,14 @@ def main() -> None:
         # ffmpeg.APPLE_HWENC_H265(bitdepth="p010le"),
         # ffmpeg.H265(preset="fast"),
         # ffmpeg.H264(preset="slower"),
-        # ffmpeg.SVTAV1(preset=6),
-        ffmpeg.SVTAV1(preset=6, ACCEPTED_CRF_RANGE=range(5, 50)),
+        ffmpeg.SVTAV1(preset=6),
+        # ffmpeg.SVTAV1(preset=6, ACCEPTED_CRF_RANGE=range(5, 50)),
         # ffmpeg.SVTAV1(preset=6, film_grain=ffmpeg.SVTAV1(0).Filmgrain(4, False)),
         ffmpeg_heuristics.VMAF(94),
         minimum_scene_length_seconds=0,
         audio_commands="-c:a libopus",
         multithreading_threads=4,
-        scenes_length_sort="largest first",
+        scenes_length_sort="interlaced",
         # make_comparison_with_blend_filter=False,  # fix
         render_final_video=False,
     )

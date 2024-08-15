@@ -1,0 +1,185 @@
+use crate::heuristics;
+use crate::scenes;
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::prelude::*;
+use std::process::{Command, Output};
+// use textwrap::dedent;
+
+#[derive(Debug)]
+pub struct InputVideo {
+    pub raw_name: String,
+    vapoursynth_script: String,
+}
+
+impl InputVideo {
+    pub fn new(input_filename: &str, vapoursynth_commands: &str) -> InputVideo {
+        let vapoursynth_script = format!(
+            "import vapoursynth as vs
+core = vs.core
+clip = core.ffms2.Source(source='{input_filename}')
+{vapoursynth_commands}
+clip.set_output(0)",
+        );
+
+        let mut file = File::create("seeking.vpy").expect("couldn't make vpy file");
+        file.write_all(vapoursynth_script.as_bytes());
+
+        InputVideo {
+            raw_name: String::from(input_filename),
+            vapoursynth_script,
+        }
+    }
+
+    /// Returns a string for the pipe for the InputVideo
+    pub fn pipe_command(
+        &self,
+        start_frame: Option<u64>,
+        end_frame: Option<u64>,
+    ) -> Result<Output, std::io::Error> {
+        let start = match start_frame {
+            Some(frame) => format!("-start {frame}"),
+            None => String::from(""),
+        };
+
+        let end = match end_frame {
+            Some(frame) => format!("-end {}", frame - 1), // WARN: test this
+            None => String::from(""),
+        };
+        // format!("vspipe -c y4m {start} {end} -")
+        Command::new("vspipe")
+            .args(["-c", "y4m"])
+            .args([start, end])
+            .arg("-")
+            .output()
+    }
+}
+
+#[derive(Debug)]
+pub struct Encoding {
+    input_file: InputVideo,
+    output_file: String,
+    codec: Codecs,
+    heuristic: heuristics::Heuristics,
+    scenes: Vec<scenes::Scenes>,
+}
+
+impl Encoding {
+    /// this renders the video, then gets a heuristic measurement immediately afterwards
+    pub fn render_video(
+        &self,
+        output_file: String,
+        codec: &Codecs,
+        heuristic: &heuristics::Heuristics,
+        scene: &scenes::Scenes,
+        CRF_value: u8,
+    ) -> Vec<f64> {
+        // self.render_video();
+        // return heuristic.get_heuristic_from_video();
+        let input_video = self
+            .input_file
+            .pipe_command(Some(scene.frame_start), Some(scene.frame_end))
+            .expect("Could not get pipe");
+
+        Command::new("ffmpeg")
+            .stdin(input_video)
+            .args(["-i", "-", "-crf", &String::from(CRF_value)[..]])
+            .output()
+            .expect("FFMPEG command failed");
+        todo!();
+    }
+
+    /// Finds the optimal CRF value for a target heuristic
+    pub fn find_optimal_crf(
+        &self,
+        output_file: String,
+        codec: Codecs,
+        heuristic: heuristics::Heuristics,
+        scene: scenes::Scenes,
+        target_value: f64,
+    ) -> (u8, HashMap<u8, f64>, String) {
+        let mut crf_heuristic_cache: HashMap<u8, f64> = HashMap::new();
+        let (mut minimum, mut maximum) = codec.CRF_range();
+
+        // while crf_heuristic_cache.get(let current_crf = (maximum - minimum) / 2).is_none() {
+        loop {
+            let current_crf = (maximum - minimum) / 2;
+            if crf_heuristic_cache.get(&current_crf).is_some() {
+                break;
+            }
+
+            let tempfilename = format!("temp - {current_crf} {output_file}.mkv");
+            let heuristic_throughout =
+                self.render_video(tempfilename, &codec, &heuristic, &scene, current_crf);
+
+            let average_heuristic: f64 =
+                heuristic_throughout.iter().sum::<f64>() / heuristic_throughout.len() as f64;
+
+            crf_heuristic_cache.insert(current_crf, average_heuristic);
+
+            match target_value.total_cmp(&average_heuristic) {
+                Ordering::Less => maximum = current_crf,
+                Ordering::Greater => minimum = current_crf,
+                Ordering::Equal => break,
+            }
+        }
+
+        let best_crf = crf_heuristic_cache.iter();
+        return (
+            best_crf,
+            crf_heuristic_cache,
+            format!("temp - {best_crf} {output_file}.mkv"),
+        );
+    }
+}
+#[derive(Copy, Clone, Debug)]
+pub enum Codecs {
+    SVTAV1 {
+        film_grain: u8,
+        film_grain_synthesis: bool,
+    },
+    Libx265,
+    Libx264,
+    HevcVideotoolbox,
+}
+
+impl Codecs {
+    pub fn crf_range(&self) -> (u8, u8) {
+        let (minimum, maximum) = match self {
+            Codecs::SVTAV1 { .. } => (0, 60),
+            Codecs::Libx264 => (0, 40),
+            Codecs::Libx265 => (0, 40),
+            Codecs::HevcVideotoolbox => (0, 100),
+        };
+        return (minimum, maximum);
+    }
+}
+
+/// Concatenates video files to form final video
+pub fn concatenate_videos(videos: Vec<String>) {
+    todo!();
+}
+
+pub struct VideoMetadata {}
+
+impl VideoMetadata {
+    pub fn get_data() {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn testing_forming_InputVideo() {
+        let vapoursynth_data = "";
+        let test = InputVideo::new("test_input.mp4", vapoursynth_data);
+        assert!(
+            test.vapoursynth_script.contains(vapoursynth_data),
+            "Doesn't contain the vapoursynth data"
+        );
+        assert!(test.vapoursynth_script.contains("test_input.mp4"));
+        assert_eq!(test.pipe_command(None, None), String::from("vspipe -c y4m"));
+    }
+}
