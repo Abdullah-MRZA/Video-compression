@@ -86,18 +86,17 @@ impl Encoding {
         crf_value: u8,
         // ) -> io::Result<Vec<f64>> {
     ) -> Vec<f64> {
-        // self.render_video();
-        // return heuristic.get_heuristic_from_video();
         let input_video_seeking = self.input_file.pipe_command(frame_start, frame_end);
 
         let mut ffmpeg_command = Command::new("ffmpeg");
-        // ffmepg_command.stdin(Stdio::piped()).args(["-i", "-"]);
         ffmpeg_command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
+            .stderr(Stdio::null()) // removes output to terminal
             .arg("-i")
             .arg("-")
-            .arg("-y");
+            .arg("-y")
+            .arg("-an");
 
         // the -crf and output may be dependant on codec (eg svt-av1-psy)
         ffmpeg_command.args(match self.codec {
@@ -110,37 +109,18 @@ impl Encoding {
             // Codecs::HevcVideotoolbox => format!(""),
         }.split_whitespace());
 
-        // let mut handle = ffmpeg_command.spawn().expect("FFMPEG command failed");
-        // let handle_stdin = handle.stdin.as_mut().expect("something wrong here...");
-        // // let mut child_stdin = handle.stdin.take().expect("something wrong here...");
-        // let data = input_video_seeking.stdout;
-        // handle_stdin.write_all(&data).expect("Error in write_all");
-        // // waiting..
-        // handle.wait().expect("wait failed");
-        // // drop(child_stdin);
-
-        // let mut ffmpeg_command = Command::new("mpv")
-        //     .arg("-")
-        //     .stdin(Stdio::piped())
-        //     .stdout(Stdio::piped())
-        //     .spawn()
-        //     .unwrap();
-
         let mut ffmpeg_command = ffmpeg_command.spawn().unwrap();
-
         let child_stdin = ffmpeg_command.stdin.as_mut().unwrap();
-        // child_stdin.write_all(&input_video_seeking.stdout).unwrap();
         child_stdin.write_all(&input_video_seeking).unwrap();
         // Close stdin to finish and avoid indefinite blocking
         // drop(child_stdin);
 
         let output = ffmpeg_command.wait_with_output().unwrap();
-
-        println!("output = {:?}", output);
+        // println!("output = {:?}", output);
 
         return self
             .heuristic
-            .get_heuristic_from_video(&self.input_file, &output_file)
+            .get_heuristic_from_video(&self.input_file, &output_file, frame_start, frame_end)
             .expect("Getting heuristic failed");
     }
 
