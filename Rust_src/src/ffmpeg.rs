@@ -3,6 +3,7 @@ use crate::scenes;
 use ordered_float::NotNan;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::fs;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -94,15 +95,24 @@ impl Encoding {
             .arg("-an");
 
         // the -crf and output may be dependant on codec (eg svt-av1-psy)
-        ffmpeg_command.args(match self.codec {
+        match self.codec {
             Codecs::SVTAV1 {
                 film_grain,
                 film_grain_synthesis,
                 tune,
-            } => format!("-crf {crf_value} -c:v libsvtav1 -svtav1-params tune={tune}:film-grain={film_grain}:film-grain-denoise={film_grain_synthesis} {output_file}"),
-            Codecs::Libx265 => format!("-crf {crf_value} -c:v libx265 {output_file}"),
-            Codecs::Libx264 => format!("-crf {crf_value} -c:v libx264 {output_file}"),
-        }.split_whitespace());
+            } => ffmpeg_command
+                .args(["-crf", &crf_value.to_string()])
+                .args(["-c:v", "libsvtav1"]).args(["-svtav1-params", &format!("tune={tune}:film-grain={film_grain}:film-grain-denoise={film_grain_synthesis}")])
+                .arg(&output_file),
+            Codecs::Libx265 => ffmpeg_command
+                .args(["-crf", &crf_value.to_string()])
+                .args(["-c:v", "libx264"])
+                .arg(&output_file),
+            Codecs::Libx264 => ffmpeg_command
+                .args(["-crf", &crf_value.to_string()])
+                .args(["-c:v", "libx265"])
+                .arg(&output_file),
+        };
 
         let mut ffmpeg_command = ffmpeg_command.spawn().unwrap();
         let child_stdin = ffmpeg_command.stdin.as_mut().unwrap();
@@ -137,7 +147,7 @@ impl Encoding {
 
         // while crf_heuristic_cache.get(let current_crf = (maximum - minimum) / 2).is_none() {
         loop {
-            let current_crf = (maximum - minimum) / 2;
+            let current_crf = (maximum + minimum) / 2;
             if crf_heuristic_cache.get(&current_crf).is_some() {
                 break;
             }
@@ -170,7 +180,15 @@ impl Encoding {
             .min_by_key(|x| NotNan::new((target_value - *x.1).abs()).unwrap())
             .expect("There should have been at least one CRF tested");
 
-        // TODO: Delete all other temporary files
+        for file_crf in crf_heuristic_cache.iter() {
+            if *file_crf.0 == *best_crf.0 {
+                continue;
+            }
+            match fs::remove_file(tempfilename(*file_crf.0)) {
+                Ok(_) => continue,
+                Err(e) => eprintln!("Error deleting file. Error message: {e}"),
+            }
+        }
 
         return (
             *best_crf.0,

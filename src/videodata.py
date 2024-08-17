@@ -54,7 +54,7 @@ class RawVideoData:
 
         if isinstance(vapoursynth_script, vapoursynth_data):
             if vapoursynth_script.crop_black_bars:
-                vapoursynth_script.vapoursynth_script += f"\nclip = core.std.CropAbs(clip, {crop_black_bars_size(self.input_filename).split("=")[-1].replace(":",", ")})\n"
+                vapoursynth_script.vapoursynth_script += f"\nclip = core.std.CropAbs(clip, {crop_black_bars_size(self.input_filename).split("=")[-1].replace(":", ", ")})\n"
 
             self.input_filename = ffmpeg.accurate_seek(
                 str(self.input_filename),
