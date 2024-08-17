@@ -65,10 +65,8 @@ clip.set_output(0)",
 #[derive(Debug)]
 pub struct Encoding {
     pub input_file: InputVideo,
-    // pub output_file: String,
     pub codec: Codecs,
     pub heuristic: heuristics::Heuristics,
-    // pub scenes: Vec<scenes::Scenes>,
 }
 
 impl Encoding {
@@ -78,9 +76,6 @@ impl Encoding {
     pub fn render_video(
         &self,
         output_file: String,
-        // codec: &Codecs,
-        // heuristic: &heuristics::Heuristics,
-        // scene: &scenes::Scenes,
         frame_start: Option<u64>,
         frame_end: Option<u64>,
         crf_value: u8,
@@ -103,10 +98,10 @@ impl Encoding {
             Codecs::SVTAV1 {
                 film_grain,
                 film_grain_synthesis,
-            } => format!("-crf {crf_value} -svtav1params film_grain={film_grain}:film-grain-denoise={film_grain_synthesis} {output_file}"),
-            Codecs::Libx265 => format!("-crf {crf_value} {output_file}"),
-            Codecs::Libx264 => format!("-crf {crf_value} {output_file}"),
-            // Codecs::HevcVideotoolbox => format!(""),
+                tune,
+            } => format!("-crf {crf_value} -c:v libsvtav1 -svtav1-params tune={tune}:film-grain={film_grain}:film-grain-denoise={film_grain_synthesis} {output_file}"),
+            Codecs::Libx265 => format!("-crf {crf_value} -c:v libx265 {output_file}"),
+            Codecs::Libx264 => format!("-crf {crf_value} -c:v libx264 {output_file}"),
         }.split_whitespace());
 
         let mut ffmpeg_command = ffmpeg_command.spawn().unwrap();
@@ -115,8 +110,8 @@ impl Encoding {
         // Close stdin to finish and avoid indefinite blocking
         // drop(child_stdin);
 
-        let output = ffmpeg_command.wait_with_output().unwrap();
-        // println!("output = {:?}", output);
+        let _output = ffmpeg_command.wait_with_output().unwrap();
+        // println!("output = {:?}", _output);
 
         return self
             .heuristic
@@ -130,11 +125,15 @@ impl Encoding {
         output_file: String,
         // codec: Codecs,
         // heuristic: heuristics::Heuristics,
-        scene: scenes::Scenes,
+        scene: Option<scenes::Scenes>,
         target_value: f64,
     ) -> (u8, HashMap<u8, f64>, String) {
         let mut crf_heuristic_cache: HashMap<u8, f64> = HashMap::new();
         let (mut minimum, mut maximum) = self.codec.crf_range();
+
+        let tempfilename = |current_crf| {
+            format!("temp-{current_crf}-{output_file}-{:?}.mkv", scene).replace(" ", "_")
+        };
 
         // while crf_heuristic_cache.get(let current_crf = (maximum - minimum) / 2).is_none() {
         loop {
@@ -143,17 +142,23 @@ impl Encoding {
                 break;
             }
 
-            let tempfilename = format!("temp - {current_crf} {output_file}.mkv");
-            let heuristic_throughout =
-                // self.render_video(tempfilename, &codec, &heuristic, &scene, current_crf);
-                self.render_video(tempfilename, Some(scene.frame_start), Some(scene.frame_end), current_crf);
+            let heuristic_throughout = match scene {
+                Some(ref scene_inner) => self.render_video(
+                    tempfilename(current_crf),
+                    Some(scene_inner.frame_start),
+                    Some(scene_inner.frame_end),
+                    current_crf,
+                ),
+                None => self.render_video(tempfilename(current_crf), None, None, current_crf),
+            };
 
             let average_heuristic: f64 =
                 heuristic_throughout.iter().sum::<f64>() / heuristic_throughout.len() as f64;
 
             crf_heuristic_cache.insert(current_crf, average_heuristic);
+            dbg!(format!("{current_crf} = {average_heuristic}"));
 
-            match target_value.total_cmp(&average_heuristic) {
+            match average_heuristic.total_cmp(&target_value) {
                 Ordering::Less => maximum = current_crf,
                 Ordering::Greater => minimum = current_crf,
                 Ordering::Equal => break,
@@ -162,21 +167,25 @@ impl Encoding {
 
         let best_crf = crf_heuristic_cache
             .iter()
-            .min_by_key(|x| NotNan::new((target_value - (*x.0) as f64).abs()).unwrap())
+            .min_by_key(|x| NotNan::new((target_value - *x.1).abs()).unwrap())
             .expect("There should have been at least one CRF tested");
+
+        // TODO: Delete all other temporary files
 
         return (
             *best_crf.0,
             crf_heuristic_cache.clone(),
-            format!("temp - {} {output_file}.mkv", *best_crf.0),
+            tempfilename(*best_crf.0),
         );
     }
 }
+
 #[derive(Copy, Clone, Debug)]
 pub enum Codecs {
     SVTAV1 {
         film_grain: u8,
         film_grain_synthesis: bool,
+        tune: i8,
     },
     Libx265,
     Libx264,
@@ -186,9 +195,9 @@ pub enum Codecs {
 impl Codecs {
     pub fn crf_range(&self) -> (u8, u8) {
         let (minimum, maximum) = match self {
-            Codecs::SVTAV1 { .. } => (0, 60),
-            Codecs::Libx264 => (0, 40),
-            Codecs::Libx265 => (0, 40),
+            Codecs::SVTAV1 { .. } => (0, 63),
+            Codecs::Libx264 => (0, 51),
+            Codecs::Libx265 => (0, 51),
             // Codecs::HevcVideotoolbox => (0, 100),
         };
         return (minimum, maximum);
@@ -222,11 +231,10 @@ pub fn concatenate_videos(videos: Vec<String>, output_file: &str) -> io::Result<
     Ok(())
 }
 
-pub struct VideoMetadata {}
-
-impl VideoMetadata {
-    pub fn get_data() {}
-}
+// pub struct VideoMetadata {}
+// impl VideoMetadata {
+//     pub fn get_data() {}
+// }
 
 #[cfg(test)]
 mod tests {

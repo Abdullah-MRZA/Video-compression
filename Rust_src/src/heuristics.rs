@@ -33,7 +33,7 @@ impl Heuristics {
 
                 command
                     .stdin(Stdio::piped())
-                    // .stderr(Stdio::null())
+                    .stderr(Stdio::null())
                     .args(["-i", "-"])
                     .args(["-i", rendered_path])
                     .args(["-lavfi", &format!("[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path={log_file}")])
