@@ -10,7 +10,7 @@ pub struct Scenes {
 }
 
 impl Scenes {
-    pub fn find_all_scenes(
+    pub fn py_scenedetect(
         video: ffmpeg::InputVideo,
         minimum_scene_length: u16,
     ) -> Result<Vec<Scenes>, ()> {

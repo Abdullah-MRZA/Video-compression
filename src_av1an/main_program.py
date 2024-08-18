@@ -26,7 +26,7 @@ def make_vapoursynth_script(INPUT_FILE: Path, ACCURATE_SEEK_METHOD: str):
     vapoursynth_script: list[str] = [
         "import vapoursynth as vs",
         "core = vs.core",
-        f"clip = core.{ACCURATE_SEEK_METHOD}.Source(source={INPUT_FILE})",
+        f'clip = core.{ACCURATE_SEEK_METHOD}.Source(source="{INPUT_FILE}")',
         # "clip = clip[::2]", # Half frame rate
         # "clip = core.fft3dfilter.FFT3DFilter(clip, sigma=1.5)",  # (Spatio-Temporal Denoisers)
         # "clip = core.f3kdb.Deband(clip)",  # (Banding Reduction)
