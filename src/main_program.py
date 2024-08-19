@@ -41,6 +41,7 @@ def main() -> None:
         # ffmpeg.SVTAV1(preset=6, ACCEPTED_CRF_RANGE=range(5, 50)),
         # ffmpeg.SVTAV1(preset=6, film_grain=ffmpeg.SVTAV1(0).Filmgrain(4, False)),
         ffmpeg_heuristics.VMAF(94),
+        # ffmpeg_heuristics.ssimulacra2_cpp(),
         minimum_scene_length_seconds=0,
         audio_commands="-c:a libopus",
         multithreading_threads=4,

@@ -14,9 +14,19 @@ use std::process::{Command, Stdio};
 // pub enum HeuristicsType {
 pub enum Heuristics {
     VMAF,
+    SSIMULACRA2Cpp,
 }
 
 impl Heuristics {
+    /// Shows what direction of the score leads to a higher quality
+    fn improving_direction(&self) -> i8 {
+        return match self {
+            Self::VMAF => 1,
+            Self::SSIMULACRA2Cpp => 1,
+        };
+    }
+
+    /// Gets the heuristic per frame from the video
     pub fn get_heuristic_from_video(
         &self,
         source_video: &InputVideo,
@@ -25,7 +35,7 @@ impl Heuristics {
         source_frame_end: Option<u64>,
     ) -> io::Result<Vec<f64>> {
         return match self {
-            Heuristics::VMAF => {
+            Self::VMAF => {
                 let mut command = Command::new("ffmpeg");
                 let threads_to_use = 6;
                 let subsample = 1; // calculate per X frames
@@ -76,6 +86,11 @@ impl Heuristics {
                     .collect::<Vec<f64>>();
 
                 Ok(vmaflist)
+            }
+            Self::SSIMULACRA2Cpp => {
+                let mut ffmpeg_command = Command::new("ffmpeg");
+                let mut ssimulacra_command = Command::new("ssimulacra");
+                todo!()
             }
         };
     }

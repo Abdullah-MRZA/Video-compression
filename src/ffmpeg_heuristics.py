@@ -7,7 +7,7 @@ import json
 import subprocess
 # from rich import print
 
-
+import concurrent.futures
 from rich.traceback import install
 
 # import v2_target_videoCRF
@@ -233,46 +233,110 @@ class VMAF:
         return vmaf_data
 
 
-# @dataclass()
-# class ssimulacra2_rs:
-#     """
-#     A very good one apparently
-#
-#     - 30 = low quality. This corresponds to the p10 worst output of mozjpeg -quality 30.
-#
-#     - 50 = medium quality. This corresponds to the average output of cjxl -q 40 or
-#             mozjpeg -quality 40, or the p10 output of cjxl -q 50 or mozjpeg -quality 60.
-#
-#     - 70 = high quality. This corresponds to the average output of cjxl -q 65 or
-#             mozjpeg -quality 70, p10 output of cjxl -q 75 or mozjpeg -quality 80.
-#
-#     - 90 = very high quality. Likely impossible to distinguish from the original when viewed
-#             at 1:1 from a normal viewing distance. This corresponds to the average output
-#             of mozjpeg -quality 95 or the p10 output of cjxl -q
-#     """
-#
-#     target_score: int
-#     NAME: str = "ssimulacra2_rs"
-#     RANGE: range = range(0, 100 + 1)  # NOTE this is MOSTLY true
-#
-#     # https://wiki.x266.mov/docs/metrics/SSIMULACRA2
-#     def overall(
-#         self,
-#         source_video_path: str,
-#         encoded_video_path: str,
-#         ffmpeg_path: str = "ffmpeg",
-#         threads_to_use: int = 2,  # "scales badly"
-#     ) -> int:
-#         ssimulacra2_rs_point = subprocess.getoutput(
-#             f"{ffmpeg_path} video {source_video_path} {encoded_video_path} -f {threads_to_use}"
-#         )
-#         # TODO WARNING CHECK HOW THE OUTPUT IS FORMATTED
-#         ...
-#
-#     def throughout_video(
-#         self,
-#         source_video_path: str,
-#         encoded_video_path: str,
-#         ffmpeg_path: str = "ffmpeg",
-#         threads_to_use: int = 2,  # "scales badly"
-#     ) -> int: ...
+@dataclass()
+class ssimulacra2_cpp:
+    """
+    - 30 = low quality. This corresponds to the p10 worst output of mozjpeg -quality 30.
+
+    - 50 = medium quality. This corresponds to the average output of cjxl -q 40 or
+            mozjpeg -quality 40, or the p10 output of cjxl -q 50 or mozjpeg -quality 60.
+
+    - 70 = high quality. This corresponds to the average output of cjxl -q 65 or
+            mozjpeg -quality 70, p10 output of cjxl -q 75 or mozjpeg -quality 80.
+
+    - 90 = very high quality. Likely impossible to distinguish from the original when viewed
+            at 1:1 from a normal viewing distance. This corresponds to the average output
+            of mozjpeg -quality 95 or the p10 output of cjxl -q
+    """
+
+    target_score: int
+    NAME: str = "ssimulacra2_rs"
+    RANGE: range = range(0, 100 + 1)  # NOTE this is MOSTLY true
+
+    IMPROVING_DIRECTION = +1
+    CERTAIN_RANGE = range(0, 100 + 1)
+
+    def throughout_video(
+        self,
+        video_data: videodata.RawVideoData,
+        compressed_video: Path | str,  # | subprocess.CompletedProcess[bytes],
+        source_start_end_frame: tuple[int | None, int | None] = (None, None),
+        threads_to_use: int = 6,
+        subsample: int = 2,  # Calculate per X frames
+    ) -> list[float]:
+        _ = subprocess.run(
+            f'ffmpeg -i "{compressed_video}" -y "TEMP-COMPRESSED-{source_start_end_frame}-%5d.png"',
+            shell=True,
+            check=True,
+        )
+        if isinstance(video_data.input_filename, Path):
+            _ = subprocess.run(
+                f'ffmpeg -i "{video_data.input_filename}" -y "TEMP-INPUT-{source_start_end_frame}-%5d.png"',
+                shell=True,
+                check=True,
+            )
+        else:
+            _ = subprocess.run(
+                f'{video_data.input_filename.command(*source_start_end_frame)} | ffmpeg -i - -y "TEMP-INPUT-{source_start_end_frame}-%5d.png"',
+                shell=True,
+                check=True,
+            )
+
+        source_images: list[str] = [
+            x
+            for x in os.listdir()
+            if os.path.isfile(x)
+            and x.startswith(f"TEMP-INPUT-{source_start_end_frame}")
+        ]
+        encode_images: list[str] = [
+            x
+            for x in os.listdir()
+            if os.path.isfile(x)
+            and x.startswith(f"TEMP-COMPRESSED-{source_start_end_frame}")
+        ]
+
+        def get_score(source_frame: str, encode_frame: str) -> float:
+            output = subprocess.run(
+                f"ssimulacra2 {source_frame} {encode_frame}",
+                shell=True,
+                check=True,
+                capture_output=True,
+            )
+            return float(output.stdout)
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            results_future = list(
+                executor.submit(get_score, source_frame, encode_frame)
+                for source_frame, encode_frame in zip(source_images, encode_images)
+            )
+            ssimulacra2_scores = [x.result() for x in results_future]
+            ssimulacra2_scores = [max(x, 0) for x in ssimulacra2_scores]  # removes -inf
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = [executor.submit(os.remove, img) for img in encode_images]
+            for x in future:
+                try:
+                    x.result()
+                except Exception:
+                    pass
+
+        return ssimulacra2_scores
+
+    # https://wiki.x266.mov/docs/metrics/SSIMULACRA2
+    def overall(
+        self,
+        video_data: videodata.RawVideoData,
+        compressed_video: Path | str,
+        source_start_end_frame: tuple[int | None, int | None] = (None, None),
+        threads_to_use: int = 6,
+        subsample: int = 2,
+    ) -> float:
+        val = self.throughout_video(
+            video_data,
+            compressed_video,
+            source_start_end_frame,
+            threads_to_use,
+            subsample,
+        )
+
+        return sum(val) / len(val)
