@@ -102,7 +102,8 @@ impl Encoding {
                 tune,
             } => ffmpeg_command
                 .args(["-crf", &crf_value.to_string()])
-                .args(["-c:v", "libsvtav1"]).args(["-svtav1-params", &format!("tune={tune}:film-grain={film_grain}:film-grain-denoise={film_grain_synthesis}")])
+                .args(["-c:v", "libsvtav1"])
+                .args(["-svtav1-params", &format!("tune={tune}:film-grain={film_grain}:film-grain-denoise={film_grain_synthesis}")])
                 .arg(&output_file),
             Codecs::Libx265 => ffmpeg_command
                 .args(["-crf", &crf_value.to_string()])
