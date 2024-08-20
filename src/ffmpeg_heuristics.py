@@ -264,11 +264,19 @@ class ssimulacra2_cpp:
         threads_to_use: int = 6,
         subsample: int = 2,  # Calculate per X frames
     ) -> list[float]:
-        _ = subprocess.run(
-            f'ffmpeg -i "{compressed_video}" -y "TEMP-COMPRESSED-{source_start_end_frame}-%5d.png"',
-            shell=True,
-            check=True,
-        )
+        if isinstance(compressed_video, Path):
+            _ = subprocess.run(
+                f'ffmpeg -i "{compressed_video}" -y "TEMP-COMPRESSED-{source_start_end_frame}-%5d.png"',
+                shell=True,
+                check=True,
+            )
+        else:
+            _ = subprocess.run(
+                f'{compressed_video} | ffmpeg -i - -y "TEMP-COMPRESSED-{source_start_end_frame}-%5d.png"',
+                shell=True,
+                check=True,
+            )
+
         if isinstance(video_data.input_filename, Path):
             _ = subprocess.run(
                 f'ffmpeg -i "{video_data.input_filename}" -y "TEMP-INPUT-{source_start_end_frame}-%5d.png"',
@@ -297,7 +305,7 @@ class ssimulacra2_cpp:
 
         def get_score(source_frame: str, encode_frame: str) -> float:
             output = subprocess.run(
-                f"ssimulacra2 {source_frame} {encode_frame}",
+                f'ssimulacra2 "{source_frame}" "{encode_frame}"',
                 shell=True,
                 check=True,
                 capture_output=True,
@@ -313,7 +321,9 @@ class ssimulacra2_cpp:
             ssimulacra2_scores = [max(x, 0) for x in ssimulacra2_scores]  # removes -inf
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = [executor.submit(os.remove, img) for img in encode_images]
+            future = [
+                executor.submit(os.remove, img) for img in encode_images + source_images
+            ]
             for x in future:
                 try:
                     x.result()
