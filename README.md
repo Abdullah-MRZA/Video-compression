@@ -6,7 +6,10 @@ A test for compressing videos extremely efficiently.
 > [!CAUTION]
 > NOTE: this is still a **work in progress!!!**: 
 > There is still a lot of work left to do, for a fully functional build.
-> At the moment, only MacOS and linux is supported, but support for windows is coming soon
+
+The project is undergoing a rewrite into rust. There are also a few experiments (in python).
+
+For the python build, only MacOS and linux is supported, but the Rust version should be fully cross-platform
 
 ## Supported Features
 
