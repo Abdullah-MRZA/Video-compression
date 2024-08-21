@@ -121,6 +121,7 @@ impl Encoding {
         // Close stdin to finish and avoid indefinite blocking
         // drop(child_stdin);
 
+        // output because pipe into standalone encoder
         let _output = ffmpeg_command.wait_with_output().unwrap();
         // println!("output = {:?}", _output);
 
@@ -233,18 +234,12 @@ pub fn concatenate_videos(videos: Vec<String>, output_file: &str) -> io::Result<
         .expect("Error in write_all");
 
     Command::new("ffmepg")
-        .args([
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            "\"videolist.txt\"",
-            "-c",
-            "copy",
-            "-y",
-            output_file,
-        ])
+        .args(["-f", "concat"])
+        .args(["-safe", "0"])
+        .args(["-i", "\"videolist.txt\""])
+        .args(["-c", "copy"])
+        .arg("-y")
+        .arg(output_file)
         .output()?;
 
     Ok(())

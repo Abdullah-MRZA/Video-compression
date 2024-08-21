@@ -1,9 +1,9 @@
 use crate::ffmpeg::InputVideo;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
-use std::fs;
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
+use std::{fs, u64};
 
 // #[derive(Debug)]
 // pub struct Heuristics {
@@ -14,15 +14,15 @@ use std::process::{Command, Stdio};
 // pub enum HeuristicsType {
 pub enum Heuristics {
     VMAF,
-    SSIMULACRA2Cpp,
+    // SSIMULACRA2Cpp,
 }
 
 impl Heuristics {
     /// Shows what direction of the score leads to a higher quality
-    fn improving_direction(&self) -> i8 {
+    pub fn improving_direction(&self) -> i8 {
         return match self {
             Self::VMAF => 1,
-            Self::SSIMULACRA2Cpp => 1,
+            // Self::SSIMULACRA2Cpp => 1,
         };
     }
 
@@ -39,7 +39,11 @@ impl Heuristics {
                 let mut command = Command::new("ffmpeg");
                 let threads_to_use = 6;
                 let subsample = 1; // calculate per X frames
-                let log_file = "logfile.json";
+                let log_file = format!(
+                    "logfile-{}-{}.json",
+                    source_frame_start.unwrap_or_else(|| 0),
+                    source_frame_end.unwrap_or_else(|| u64::MAX)
+                ); // WARNING: this WILL have issues in multithreaded code
 
                 command
                     .stdin(Stdio::piped())
@@ -76,7 +80,7 @@ impl Heuristics {
                     vmaf: f64,
                 }
 
-                let string = fs::read_to_string("logfile.json").unwrap();
+                let string = fs::read_to_string(&log_file).expect("Unable to read VMAF-json file");
                 let data = from_str::<OverallData>(&string)?;
 
                 let vmaflist = data
@@ -85,13 +89,16 @@ impl Heuristics {
                     .map(|x| x.metrics.vmaf)
                     .collect::<Vec<f64>>();
 
+                if fs::remove_file(&log_file).is_err() {
+                    eprintln!("Unable to remove {} for VMAF", &log_file);
+                }
+
                 Ok(vmaflist)
-            }
-            Self::SSIMULACRA2Cpp => {
-                let mut ffmpeg_command = Command::new("ffmpeg");
-                let mut ssimulacra_command = Command::new("ssimulacra");
-                todo!()
-            }
+            } // Self::SSIMULACRA2Cpp => {
+              //     let mut ffmpeg_command = Command::new("ffmpeg");
+              //     let mut ssimulacra_command = Command::new("ssimulacra");
+              //     todo!()
+              // }
         };
     }
 }

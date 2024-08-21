@@ -1,6 +1,5 @@
 use crate::ffmpeg;
 use std::fs;
-use std::io;
 use std::process::Command;
 
 #[derive(Debug)]
@@ -11,6 +10,8 @@ pub struct Scenes {
 }
 
 impl Scenes {
+    /// Use the pyscenedetect terminal command (can be installed by pipx)
+    /// for determinining the different scenes in the video
     pub fn py_scenedetect(
         video: ffmpeg::InputVideo,
         minimum_scene_length: u16,
@@ -45,7 +46,7 @@ impl Scenes {
         lines.next();
         lines.next();
 
-        let fail_message = "Unable to parse frame numbers from scenedetect file";
+        let fail_message = "Unable to parse frame numbers to ints from scenedetect file";
         let data = lines
             .map(|x| x.split(",").collect::<Vec<&str>>())
             .map(|x| (x[1].parse::<u64>(), x[4].parse::<u64>()))
