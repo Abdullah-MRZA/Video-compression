@@ -8,12 +8,10 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::process::{Command, Output, Stdio};
-// use textwrap::dedent;
 
 #[derive(Debug)]
 pub struct InputVideo {
     pub raw_name: String,
-    // vapoursynth_script: String,
 }
 
 impl InputVideo {
@@ -32,7 +30,6 @@ clip.set_output(0)",
 
         InputVideo {
             raw_name: String::from(input_filename),
-            // vapoursynth_script,
         }
     }
 
@@ -84,6 +81,11 @@ impl Encoding {
     ) -> Vec<f64> {
         let input_video_seeking = self.input_file.pipe_command(frame_start, frame_end);
 
+        {
+            let crf_range = self.codec.crf_range();
+            assert!(crf_range.0 <= crf_value && crf_value <= crf_range.1);
+        }
+
         let mut ffmpeg_command = Command::new("ffmpeg");
         ffmpeg_command
             .stdin(Stdio::piped())
@@ -97,12 +99,14 @@ impl Encoding {
         // the -crf and output may be dependant on codec (eg svt-av1-psy)
         match self.codec {
             Codecs::SVTAV1 {
+                preset,
                 film_grain,
                 film_grain_synthesis,
                 tune,
             } => ffmpeg_command
                 .args(["-crf", &crf_value.to_string()])
                 .args(["-c:v", "libsvtav1"])
+                .args(["-preset", &preset.to_string()])
                 .args(["-svtav1-params", &format!("tune={tune}:film-grain={film_grain}:film-grain-denoise={film_grain_synthesis}")])
                 .arg(&output_file),
             Codecs::Libx265 => ffmpeg_command
@@ -113,6 +117,9 @@ impl Encoding {
                 .args(["-crf", &crf_value.to_string()])
                 .args(["-c:v", "libx265"])
                 .arg(&output_file),
+            Codecs::SVTAV1PSY {..} => ffmpeg_command
+                .args(["-f", "yuv4mpegpipe"])
+                .arg("-")
         };
 
         let mut ffmpeg_command = ffmpeg_command.spawn().unwrap();
@@ -122,8 +129,36 @@ impl Encoding {
         // drop(child_stdin);
 
         // output because pipe into standalone encoder
-        let _output = ffmpeg_command.wait_with_output().unwrap();
+        let output = ffmpeg_command.wait_with_output().unwrap();
         // println!("output = {:?}", _output);
+
+        match self.codec {
+            Codecs::SVTAV1PSY {
+                preset,
+                tune,
+                film_grain,
+                enable_adaptive_film_grain: adaptive_film_grain,
+            } => {
+                let mut svtav1psy_command = Command::new("SvtAv1EncApp");
+                svtav1psy_command
+                    .args(["-i", "stdin"])
+                    .args(["--preset", &preset.to_string()])
+                    .args(["--crf", &crf_value.to_string()])
+                    .args(["--tune", &tune.to_string()])
+                    .args(["--film-grain", &film_grain.to_string()])
+                    .args([
+                        "--adaptive-film-grain",
+                        if adaptive_film_grain { "1" } else { "0" },
+                    ]);
+
+                let mut svtav1psy_command_spawn = svtav1psy_command.spawn().unwrap();
+                let child_stdin = svtav1psy_command_spawn.stdin.as_mut().unwrap();
+                child_stdin.write_all(&output.stdout).unwrap();
+
+                let _output = svtav1psy_command_spawn.wait_with_output().unwrap();
+            }
+            _ => {}
+        }
 
         return self
             .heuristic
@@ -134,7 +169,6 @@ impl Encoding {
     /// Finds the optimal CRF value for a target heuristic
     pub fn find_optimal_crf(
         &self,
-        output_file: String,
         // codec: Codecs,
         // heuristic: heuristics::Heuristics,
         scene: Option<&scenes::Scenes>,
@@ -144,7 +178,9 @@ impl Encoding {
         let (mut minimum, mut maximum) = self.codec.crf_range();
 
         let tempfilename = |current_crf| {
-            format!("temp-{current_crf}-{output_file}-{:?}.mkv", scene).replace(" ", "_")
+            format!("temp-{current_crf}-{:?}.mkv", scene)
+                .replace(" ", "_")
+                .replace("\"", "_")
         };
 
         // while crf_heuristic_cache.get(let current_crf = (maximum - minimum) / 2).is_none() {
@@ -206,9 +242,16 @@ pub enum Codecs {
         film_grain: u8,
         film_grain_synthesis: bool,
         tune: i8,
+        preset: u8,
     },
     Libx265,
     Libx264,
+    SVTAV1PSY {
+        preset: i8,
+        tune: u8,
+        film_grain: u8,
+        enable_adaptive_film_grain: bool,
+    },
     // HevcVideotoolbox,
 }
 
@@ -216,6 +259,7 @@ impl Codecs {
     pub fn crf_range(&self) -> (u8, u8) {
         let (minimum, maximum) = match self {
             Codecs::SVTAV1 { .. } => (0, 63),
+            Codecs::SVTAV1PSY { .. } => (0, 70),
             Codecs::Libx264 => (0, 51),
             Codecs::Libx265 => (0, 51),
             // Codecs::HevcVideotoolbox => (0, 100),
@@ -226,17 +270,17 @@ impl Codecs {
 
 /// Concatenates video files to form final video
 pub fn concatenate_videos(videos: Vec<String>, output_file: &str) -> io::Result<()> {
-    let video_marks: Vec<String> = videos.iter().map(|x| format!("'{x}'")).collect();
-    let file_text = format!("file: \n{}", video_marks.join("\n"));
+    let video_marks: Vec<String> = videos.iter().map(|x| format!("file '{x}'")).collect();
+    let file_text = format!("\n{}", video_marks.join("\n"));
 
-    let mut file = File::create("\"videolist.txt\"")?;
+    let mut file = File::create("videolist.txt")?;
     file.write_all(file_text.as_bytes())
         .expect("Error in write_all");
 
-    Command::new("ffmepg")
+    Command::new("ffmpeg")
         .args(["-f", "concat"])
         .args(["-safe", "0"])
-        .args(["-i", "\"videolist.txt\""])
+        .args(["-i", "videolist.txt"])
         .args(["-c", "copy"])
         .arg("-y")
         .arg(output_file)
