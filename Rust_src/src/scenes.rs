@@ -6,14 +6,13 @@ use std::process::Command;
 pub struct Scenes {
     pub frame_start: u64,
     pub frame_end: u64,
-    // optimal_crf_for_scene: Option<u8>,
 }
 
 impl Scenes {
     /// Use the pyscenedetect terminal command (can be installed by pipx)
     /// for determinining the different scenes in the video
     pub fn py_scenedetect(
-        video: ffmpeg::InputVideo,
+        video: &ffmpeg::InputVideo,
         minimum_scene_length: u16,
         // ) -> io::Result<Vec<Scenes>> {
     ) -> Vec<Scenes> {

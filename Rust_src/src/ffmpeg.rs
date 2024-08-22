@@ -137,7 +137,7 @@ impl Encoding {
         output_file: String,
         // codec: Codecs,
         // heuristic: heuristics::Heuristics,
-        scene: Option<scenes::Scenes>,
+        scene: Option<&scenes::Scenes>,
         target_value: f64,
     ) -> (u8, HashMap<u8, f64>, String) {
         let mut crf_heuristic_cache: HashMap<u8, f64> = HashMap::new();
