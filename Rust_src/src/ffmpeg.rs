@@ -13,7 +13,7 @@ use std::process::{Command, Output, Stdio};
 #[derive(Debug)]
 pub struct InputVideo {
     pub raw_name: String,
-    vapoursynth_script: String,
+    // vapoursynth_script: String,
 }
 
 impl InputVideo {
@@ -32,7 +32,7 @@ clip.set_output(0)",
 
         InputVideo {
             raw_name: String::from(input_filename),
-            vapoursynth_script,
+            // vapoursynth_script,
         }
     }
 
