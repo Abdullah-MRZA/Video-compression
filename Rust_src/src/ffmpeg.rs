@@ -137,19 +137,25 @@ impl Encoding {
                 preset,
                 tune,
                 film_grain,
-                enable_adaptive_film_grain: adaptive_film_grain,
+                enable_adaptive_film_grain,
             } => {
                 let mut svtav1psy_command = Command::new("SvtAv1EncApp");
+
                 svtav1psy_command
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null())
                     .args(["-i", "stdin"])
+                    .args(["--keyint", "240"])
                     .args(["--preset", &preset.to_string()])
                     .args(["--crf", &crf_value.to_string()])
                     .args(["--tune", &tune.to_string()])
                     .args(["--film-grain", &film_grain.to_string()])
-                    .args([
-                        "--adaptive-film-grain",
-                        if adaptive_film_grain { "1" } else { "0" },
-                    ]);
+                    // .args([
+                    //     "--adaptive-film-grain",
+                    //     if enable_adaptive_film_grain { "1" } else { "0" },
+                    // ])
+                    .args(["-b", &output_file]);
 
                 let mut svtav1psy_command_spawn = svtav1psy_command.spawn().unwrap();
                 let child_stdin = svtav1psy_command_spawn.stdin.as_mut().unwrap();
@@ -173,8 +179,9 @@ impl Encoding {
         // heuristic: heuristics::Heuristics,
         scene: Option<&scenes::Scenes>,
         target_value: f64,
-    ) -> (u8, HashMap<u8, f64>, String) {
+    ) -> (u8, HashMap<u8, f64>, Vec<(u8, f64)>, String) {
         let mut crf_heuristic_cache: HashMap<u8, f64> = HashMap::new();
+        let mut crf_heuristic_cache_order_store: Vec<(u8, f64)> = vec![];
         let (mut minimum, mut maximum) = self.codec.crf_range();
 
         let tempfilename = |current_crf| {
@@ -204,8 +211,10 @@ impl Encoding {
                 heuristic_throughout.iter().sum::<f64>() / heuristic_throughout.len() as f64;
 
             crf_heuristic_cache.insert(current_crf, average_heuristic);
+            crf_heuristic_cache_order_store.push((current_crf, average_heuristic));
             dbg!(format!("{current_crf} = {average_heuristic}"));
 
+            // TODO: Add direction of movement
             match average_heuristic.total_cmp(&target_value) {
                 Ordering::Less => maximum = current_crf,
                 Ordering::Greater => minimum = current_crf,
@@ -231,6 +240,7 @@ impl Encoding {
         return (
             *best_crf.0,
             crf_heuristic_cache.clone(),
+            crf_heuristic_cache_order_store.clone(),
             tempfilename(*best_crf.0),
         );
     }

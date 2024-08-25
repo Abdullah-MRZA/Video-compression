@@ -48,6 +48,7 @@ impl Scenes {
         let fail_message = "Unable to parse frame numbers to ints from scenedetect file";
         let data = lines
             .map(|x| x.split(",").collect::<Vec<&str>>())
+            .filter(|x| (*x)[0] != "")
             .map(|x| (x[1].parse::<u64>(), x[4].parse::<u64>()))
             .map(|(x, y)| (x.expect(fail_message), y.expect(fail_message)))
             .map(|(x, y)| Scenes {
