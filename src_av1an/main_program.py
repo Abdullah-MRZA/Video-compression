@@ -45,7 +45,7 @@ def make_vapoursynth_script(INPUT_FILE: Path, ACCURATE_SEEK_METHOD: str):
 
 def get_av1an_script(
     workers: int,
-    target_quality: float,
+    target_quality: float | None,
     raw_command_video: str,
     ffmpeg_audio_command: str,
     output_file: Path,
@@ -65,7 +65,12 @@ def get_av1an_script(
     if ffmpeg_filter_options != "":
         ffmpeg_filter_options = f'-f "{ffmpeg_filter_options}"'
 
-    av1an_script: str = f'av1an -i seeking.vpy -e {encoder} -p {number_of_passes} {ffmpeg_filter_options} --pix-format {pixel_format} -v "{raw_command_video}" -w {workers} --target-quality {target_quality} -a {ffmpeg_audio_command} --min-scene-len {minimum_scene_len_frames} -l log_for_video --vmaf -r -o {output_file}'
+    if target_quality is None:
+        target_quality_str = ""
+    else:
+        target_quality_str = f"--target-quality {target_quality}"
+
+    av1an_script: str = f'av1an -i seeking.vpy -e {encoder} -p {number_of_passes} {ffmpeg_filter_options} --pix-format {pixel_format} -v "{raw_command_video}" -w {workers} {target_quality_str} -a "{ffmpeg_audio_command}" --min-scene-len {minimum_scene_len_frames} -l log_for_video --vmaf -r -o {output_file}'
     return av1an_script
 
 
@@ -79,7 +84,8 @@ def main():
         get_av1an_script(
             workers=0,
             target_quality=93.5,
-            raw_command_video="--rc 0 --crf 24 --preset 6 --input-depth 10 --tune 0 --film-grain 10 --film-grain-denoise 0 --lookahead 120 --keyint 240",  # SVTAV1
+            # raw_command_video="--rc 0 --crf 24 --preset 6 --input-depth 10 --tune 0 --film-grain 10 --film-grain-denoise 0 --lookahead 120 --keyint 240",  # SVTAV1
+            raw_command_video="--rc 0 --preset 6 --input-depth 10 --tune 0 --film-grain 10 --film-grain-denoise 0 --lookahead 120 --keyint 240",  # SVTAV1
             ffmpeg_audio_command="-c:a libopus",
             output_file=OUTPUT_FILE,
             encoder="svt-av1",
