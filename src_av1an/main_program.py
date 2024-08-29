@@ -37,7 +37,8 @@ def make_vapoursynth_script(INPUT_FILE: Path, ACCURATE_SEEK_METHOD: str):
     )
 
     # Last command
-    vapoursynth_script.append("clip.set_output(0)")
+    # vapoursynth_script.append("clip.set_output(0)")
+    vapoursynth_script.append("clip.set_output()")
 
     with open("seeking.vpy", "w") as f:
         _ = f.write("\n".join(vapoursynth_script))
