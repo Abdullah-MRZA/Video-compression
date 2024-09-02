@@ -1,24 +1,14 @@
-from dataclasses import dataclass
-from pathlib import Path
+# This program is just for svtav1psy (not a generalist)
 
 
-@dataclass()
-class libx264:
-    RANGE = range(0, 50)
+def render_section(input: str, crf: int) -> str:
+    """Returns path to file produced"""
 
+def get_scenes(input: str) -> list[]
 
-type VideoCodec = libx264
-
-
-@dataclass()
-class inputVideoData:
-    raw_video_path: Path
-    raw_output_video_path: Path
-
-    codec: VideoCodec
-
-
-def main(): ...
+def main():
+    input_video = "video.mkv"
+    scenes = get_scenes(input_video)
 
 
 if __name__ == "__main__":

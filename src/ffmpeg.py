@@ -1,34 +1,18 @@
-import subprocess
+from pydantic import validate_call
 from typing import Literal
-
-# from typing_extensions import override
-import file_cache
-
-# import ffmpeg_heuristics
-# from textwrap import dedent
-import textwrap
-
-# from dataclasses import dataclass
 import dataclasses
-
-# from typing import Literal
-import typing
+import file_cache
 import json
 import os
-# from rich.traceback import install
-
-# import v2_target_videoCRF
-
-# from pathlib import Path
 import pathlib
-
+import subprocess
+import textwrap
+import typing
 import videodata
-# from types import TracebackType
-
-# _ = install(show_locals=True)
 
 
-type VideoCodec = SVTAV1 | H264 | H265 | APPLE_HWENC_H265
+# type VideoCodec = SVTAV1 | H264 | H265 | APPLE_HWENC_H265
+type VideoCodec = SVTAV1 | H264 | H265 | SVTAV1PSY
 # type VideoCodec = SVTAV1 | H264 | H265
 
 """
@@ -40,45 +24,26 @@ generate… at which point named pipes are also on the table.
 """
 
 
-# @dataclasses.dataclass()
-# class SVTAV1PSY:
-#     preset: int = 8
-#     tune: typing.Literal["2", "3"] = "2"
-#
-#     @dataclasses.dataclass()
-#     class Filmgrain:
-#         film_grain: int
-#         film_grain_denoise: bool
-#
-#     film_grain: None | Filmgrain = None
-#     bitdepth: typing.Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
-#
-#     ACCEPTED_CRF_RANGE: range = range(0, 63 + 1, 1)
-#     NAME = "SVTAV1-PSY"
-#     BETTER_QUALITY = -1
-#
-#     def to_subprocess_command(self, crf: int) -> list[str]:
-#         return ["-c:v copy"]
-#
-#     # BUG: TODO complete these functions
-#     # TODO: pipe into standalone encoder
-#     def output_file(self, output_filename: str, crf_value: int) -> str:
-#         command = [
-#             "-c:v libsvtav1",
-#             f"-preset {self.preset}",
-#             f"-pix_fmt {self.bitdepth}",
-#             f"-crf {crf_value}",
-#         ]
-#
-#         if self.film_grain is not None:
-#             command.append(f"-svtav1-params film-grain={self.film_grain.film_grain}")
-#             command.append(
-#                 f"-svtav1-params film-grain-denoise={self.film_grain.film_grain_denoise}"
-#             )
-#
-#         command.append(f"-svtav1-params tune={["subjective", "PSNR"].index(self.tune)}")
-#         # return f'"{output_filename}"'
-#         return
+@dataclasses.dataclass()
+class SVTAV1PSY:
+    preset: int = 8
+    tune: typing.Literal["2", "3"] = "3"
+
+    film_grain: int | None = None
+    bitdepth: typing.Literal["yuv420p", "yuv420p10le"] = "yuv420p10le"
+
+    ACCEPTED_CRF_RANGE: range = range(0, 63 + 1, 1)
+    NAME = "SVTAV1-PSY"
+    BETTER_QUALITY = -1
+
+    def to_subprocess_command(self, crf: int) -> list[str]:
+        return ["-c:v copy", f"-pix_fmt {self.bitdepth}"]
+
+    def output_file(self, output_filename: str, crf_value: int) -> str:
+        possible_film_grain_text = (
+            "" if self.film_grain is None else f"--film-grain {self.film_grain}"
+        )
+        return f" | ./SvtAv1EncApp -i stdin --preset {self.preset} --tune {self.tune} --crf {crf_value} --keyint 300 {possible_film_grain_text} -b - | ffmpeg -i - -c copy {output_filename}"
 
 
 @dataclasses.dataclass()
@@ -320,18 +285,13 @@ class accurate_seek:
 
 @file_cache.store_cumulative_time
 def run_ffmpeg_command(
-    # video data
     input_file: videodata.RawVideoData,
     output_file: pathlib.Path | Literal["get bytes data", "get ffmpeg string"],
-    # CRF used
     crf_value: int,
-    # compression data
     codec_information: VideoCodec,
     start_frame: int | None,
     end_frame: int | None,
-    # crop_black_bars: bool,
     keyframe_placement: int | None,
-    # input_file_script_seeking: accurate_seek,
 ) -> subprocess.CompletedProcess[bytes] | str | None:
     framerate: float = get_video_metadata(
         input_file, input_file.input_filename
@@ -411,20 +371,14 @@ class VideoMetadata:
     file_name: str
     width: int
     height: int
-    # frame rate info
     frame_rate: float
     total_frames: int
-    # pixel info
     pix_fmt: str
-    codec: str  # change to codec?
-    # timings
+    codec: str
     start_time: float
     duration: float
-    # other data
     contains_audio: bool
     file_size: int
-    # bitrate: int
-    # is_HDR: bool
 
 
 # BUG: this function needs porting over (haven't done yet because cyclic import needs fixing)
@@ -648,8 +602,6 @@ def visual_comparison_of_video_with_blend_filter(
     source_video_path_vapoursynth: accurate_seek,
     encoded_video_path: str,
     output_filename_with_extension: str,
-    # source_start_end_frame: None | tuple[int, int] = None,
-    # encode_start_end_frame: None | tuple[int, int] = None,
     quality_crf_h264: int = 20,
 ) -> None:
     """
@@ -711,8 +663,3 @@ def combine_audio_and_subtitle_streams_from_another_video(
 
     os.remove(output_file_name_with_extension)
     os.rename(intermediate_file, output_file_name_with_extension)
-    # os.remove(intermediate_file)
-    # except Exception:
-    #     _ = input(
-    #         "ERROR IN combine_audio_and_subtitle_streams_from_another_video() function"
-    #     )

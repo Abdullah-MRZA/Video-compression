@@ -1,7 +1,7 @@
 from dataclasses import dataclass
+from pydantic import validate_call
 from types import TracebackType
 from typing import Literal
-
 import matplotlib.pyplot as plt
 
 
@@ -40,6 +40,7 @@ class LinegraphImage:
     def __enter__(self):
         return self
 
+    @validate_call
     def add_linegraph_left(
         self,
         x_data: list[int | float],

@@ -14,7 +14,7 @@ use std::{fs, u64};
 // pub enum HeuristicsType {
 pub enum Heuristics {
     VMAF,
-    // SSIMULACRA2Cpp,
+    SsimulacraRs, // SSIMULACRA2Cpp,
 }
 
 impl Heuristics {
@@ -22,7 +22,7 @@ impl Heuristics {
     pub fn improving_direction(&self) -> i8 {
         return match self {
             Self::VMAF => 1,
-            // Self::SSIMULACRA2Cpp => 1,
+            Self::SsimulacraRs => 1,
         };
     }
 
@@ -95,10 +95,51 @@ impl Heuristics {
 
                 Ok(vmaflist)
             } // Self::SSIMULACRA2Cpp => {
-              //     let mut ffmpeg_command = Command::new("ffmpeg");
-              //     let mut ssimulacra_command = Command::new("ssimulacra");
-              //     todo!()
-              // }
+            //     let mut ffmpeg_command = Command::new("ffmpeg");
+            //     let mut ssimulacra_command = Command::new("ssimulacra");
+            //     todo!()
+            // }
+            Self::SsimulacraRs => {
+                let mut ffmpeg_command = Command::new("ffmpeg");
+                let intermediate_filename = format!(
+                    "intermediate-ssimulacra-{}-{}.mkv",
+                    source_frame_start.unwrap_or_else(|| 0),
+                    source_frame_end.unwrap_or_else(|| 0)
+                );
+
+                ffmpeg_command
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .stdin(Stdio::piped())
+                    .args(["-i", "-"])
+                    .args(["-c", "copy"])
+                    .arg(&intermediate_filename);
+
+                let mut command = Command::new("ssimulacra2_rs");
+                command
+                    .stderr(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .arg("video")
+                    .arg(&intermediate_filename)
+                    .arg(rendered_path)
+                    .arg("-v") // per frame
+                    .args(["-f", &6.to_string()]) // number of threads
+                    .args(["-i", &10.to_string()]); // every 10 frames
+
+                let ssim_command = command.spawn()?;
+                let command_output = ssim_command.wait_with_output()?.stdout;
+                let output =
+                    String::from_utf8(command_output).expect("could not convert Vec<u8> to String");
+
+                let mean_value = output
+                    .lines()
+                    .filter(|x| x.starts_with("Frame") && !x.ends_with("skip"))
+                    .map(|x| x.split(':').last().unwrap().parse::<f64>().unwrap())
+                    .collect::<Vec<f64>>();
+
+                fs::remove_file(intermediate_filename)?;
+                Ok(mean_value)
+            }
         };
     }
 }
