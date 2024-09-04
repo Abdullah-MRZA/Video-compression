@@ -22,7 +22,8 @@ impl Scenes {
         // };
 
         // f"scenedetect --input '{video_data.raw_input_filename.name}' -m {minimum_length_scene_seconds} detect-adaptive list-scenes",
-        let scenedetect_data = Command::new("scenedetect")
+
+        Command::new("scenedetect")
             .args(["--input", &video.raw_name[..]])
             .args(["-m", &minimum_scene_length.to_string()[..]])
             .arg("detect-adaptive")

@@ -29,11 +29,12 @@ impl Heuristics {
     /// Gets the heuristic per frame from the video
     pub fn get_heuristic_from_video(
         &self,
-        source_video: &InputVideo,
+        source_video: InputVideo,
         rendered_path: &str,
         source_frame_start: Option<u64>,
         source_frame_end: Option<u64>,
-    ) -> io::Result<Vec<f64>> {
+        // ) -> io::Result<Vec<f64>> {
+    ) -> Vec<f64> {
         return match self {
             Self::VMAF => {
                 let mut command = Command::new("ffmpeg");
@@ -53,11 +54,12 @@ impl Heuristics {
                     .args(["-lavfi", &format!("[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path={log_file}")])
                     .args(["-f", "null", "-"]);
 
-                let mut ffmpeg_command = command.spawn()?;
+                let mut ffmpeg_command = command.spawn().unwrap();
                 let child_stdin = ffmpeg_command.stdin.as_mut().unwrap();
                 child_stdin
-                    .write_all(&source_video.pipe_command(source_frame_start, source_frame_end))?;
-                let _output = ffmpeg_command.wait_with_output()?;
+                    .write_all(&source_video.pipe_command(source_frame_start, source_frame_end))
+                    .unwrap();
+                let _output = ffmpeg_command.wait_with_output().unwrap();
 
                 // Now read the data from the json file
 
@@ -81,7 +83,7 @@ impl Heuristics {
                 }
 
                 let string = fs::read_to_string(&log_file).expect("Unable to read VMAF-json file");
-                let data = from_str::<OverallData>(&string)?;
+                let data = from_str::<OverallData>(&string).unwrap();
 
                 let vmaflist = data
                     .frames
@@ -93,12 +95,8 @@ impl Heuristics {
                     eprintln!("Unable to remove {} for VMAF", &log_file);
                 }
 
-                Ok(vmaflist)
-            } // Self::SSIMULACRA2Cpp => {
-            //     let mut ffmpeg_command = Command::new("ffmpeg");
-            //     let mut ssimulacra_command = Command::new("ssimulacra");
-            //     todo!()
-            // }
+                vmaflist
+            }
             Self::SsimulacraRs => {
                 let mut ffmpeg_command = Command::new("ffmpeg");
                 let intermediate_filename = format!(
@@ -107,16 +105,26 @@ impl Heuristics {
                     source_frame_end.unwrap_or_else(|| 0)
                 );
 
-                ffmpeg_command
+                let mut ffmpeg_child = ffmpeg_command
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .stdin(Stdio::piped())
                     .args(["-i", "-"])
                     .args(["-c", "copy"])
-                    .arg(&intermediate_filename);
+                    .arg(&intermediate_filename)
+                    .spawn()
+                    .expect("Failed to start child process");
+
+                let mut child_stdin = ffmpeg_child.stdin.take().unwrap();
+                std::thread::spawn(move || {
+                    child_stdin
+                        .write_all(&source_video.pipe_command(source_frame_start, source_frame_end))
+                        .expect("unable to write to stdin");
+                });
+                ffmpeg_child.wait().unwrap();
 
                 let mut command = Command::new("ssimulacra2_rs");
-                command
+                let command_child = command
                     .stderr(Stdio::null())
                     .stdout(Stdio::piped())
                     .arg("video")
@@ -124,21 +132,27 @@ impl Heuristics {
                     .arg(rendered_path)
                     .arg("-v") // per frame
                     .args(["-f", &6.to_string()]) // number of threads
-                    .args(["-i", &10.to_string()]); // every 10 frames
+                    .args(["-i", &10.to_string()]) // every 10 frames
+                    .spawn()
+                    .unwrap();
 
-                let ssim_command = command.spawn()?;
-                let command_output = ssim_command.wait_with_output()?.stdout;
+                let command_output = command_child.wait_with_output().unwrap().stdout;
                 let output =
                     String::from_utf8(command_output).expect("could not convert Vec<u8> to String");
 
                 let mean_value = output
                     .lines()
                     .filter(|x| x.starts_with("Frame") && !x.ends_with("skip"))
-                    .map(|x| x.split(':').last().unwrap().parse::<f64>().unwrap())
+                    .map(|x| x.split(':').last().unwrap().trim().parse::<f64>().unwrap())
                     .collect::<Vec<f64>>();
 
-                fs::remove_file(intermediate_filename)?;
-                Ok(mean_value)
+                match fs::remove_file(&intermediate_filename) {
+                    Ok(_) => {}
+                    Err(x) => {
+                        eprintln!("Error, can't delete file {intermediate_filename} (reason): {x}")
+                    }
+                }
+                mean_value
             }
         };
     }

@@ -9,7 +9,7 @@ use std::io;
 use std::io::prelude::*;
 use std::process::{Command, Output, Stdio};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InputVideo {
     pub raw_name: String,
 }
@@ -129,7 +129,7 @@ impl Encoding {
         // drop(child_stdin);
 
         // output because pipe into standalone encoder
-        let output = ffmpeg_command.wait_with_output().unwrap();
+        let output_ffmpeg = ffmpeg_command.wait_with_output().unwrap();
         // println!("output = {:?}", _output);
 
         match self.codec {
@@ -137,7 +137,7 @@ impl Encoding {
                 preset,
                 tune,
                 film_grain,
-                enable_adaptive_film_grain,
+                // enable_adaptive_film_grain,
             } => {
                 let mut svtav1psy_command = Command::new("SvtAv1EncApp");
 
@@ -159,17 +159,19 @@ impl Encoding {
 
                 let mut svtav1psy_command_spawn = svtav1psy_command.spawn().unwrap();
                 let child_stdin = svtav1psy_command_spawn.stdin.as_mut().unwrap();
-                child_stdin.write_all(&output.stdout).unwrap();
+                child_stdin.write_all(&output_ffmpeg.stdout).unwrap();
 
                 let _output = svtav1psy_command_spawn.wait_with_output().unwrap();
             }
             _ => {}
         }
 
-        return self
-            .heuristic
-            .get_heuristic_from_video(&self.input_file, &output_file, frame_start, frame_end)
-            .expect("Getting heuristic failed");
+        return self.heuristic.get_heuristic_from_video(
+            self.input_file.clone(),
+            &output_file,
+            frame_start,
+            frame_end,
+        );
     }
 
     /// Finds the optimal CRF value for a target heuristic
@@ -260,7 +262,7 @@ pub enum Codecs {
         preset: i8,
         tune: u8,
         film_grain: u8,
-        enable_adaptive_film_grain: bool,
+        // enable_adaptive_film_grain: bool,
     },
     // HevcVideotoolbox,
 }
