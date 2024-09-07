@@ -1,6 +1,7 @@
 use crate::ffmpeg::InputVideo;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
+use std::cmp::max_by;
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
 use std::{fs, u64};
@@ -144,6 +145,7 @@ impl Heuristics {
                     .lines()
                     .filter(|x| x.starts_with("Frame") && !x.ends_with("skip"))
                     .map(|x| x.split(':').last().unwrap().trim().parse::<f64>().unwrap())
+                    .map(|x| max_by(x, 0.0, |x, y| x.abs().partial_cmp(&y.abs()).unwrap()))
                     .collect::<Vec<f64>>();
 
                 match fs::remove_file(&intermediate_filename) {

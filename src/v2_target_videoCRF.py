@@ -425,7 +425,6 @@ def identify_videosection_optimal_crf(
             if isinstance(output_video_name, Path)
             else temporary_ffmpeg_command,
             source_start_end_frame=(frame_start, frame_end),
-            subsample=1,
         )
 
         print(current_heuristic)
@@ -491,8 +490,10 @@ def identify_videosection_optimal_crf(
         if output_video_name is None
         else temp_vid_filename(closest_value[0], frame_start, frame_end_raw),
         source_start_end_frame=(frame_start, frame_end),
-        subsample=1,
     )
+
+    heuristic_throughout = [[x] * heuristic.subsample for x in heuristic_throughout]
+    heuristic_throughout = [y for x in heuristic_throughout for y in x]
 
     for filepath in all_temp_files:
         if filepath == temp_vid_filename(closest_value[0], frame_start, frame_end_raw):

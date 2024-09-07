@@ -109,11 +109,11 @@ impl Encoding {
                 .args(["-preset", &preset.to_string()])
                 .args(["-svtav1-params", &format!("tune={tune}:film-grain={film_grain}:film-grain-denoise={film_grain_synthesis}")])
                 .arg(&output_file),
-            Codecs::Libx265 => ffmpeg_command
+            Codecs::Libx264 => ffmpeg_command
                 .args(["-crf", &crf_value.to_string()])
                 .args(["-c:v", "libx264"])
                 .arg(&output_file),
-            Codecs::Libx264 => ffmpeg_command
+            Codecs::Libx265 => ffmpeg_command
                 .args(["-crf", &crf_value.to_string()])
                 .args(["-c:v", "libx265"])
                 .arg(&output_file),

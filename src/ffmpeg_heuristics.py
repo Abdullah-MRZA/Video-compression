@@ -16,7 +16,7 @@ import videodata
 _ = install(show_locals=True)
 
 
-type heuristic = VMAF
+type heuristic = VMAF | ssimulacra2_rs
 
 # PROGRAM ASSUMPTION --> Bigger heuristic is better!
 
@@ -39,6 +39,8 @@ class VMAF:
     """
 
     target_score: int
+    subsample: int = 2  # Calculate per X frames
+
     NAME: str = "VMAF"
     RANGE: range = range(0, 100 + 1)
     IMPROVING_DIRECTION = +1
@@ -52,7 +54,6 @@ class VMAF:
         compressed_video: Path | str,  # | subprocess.CompletedProcess[bytes],
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         threads_to_use: int = 6,
-        subsample: int = 2,  # Calculate per X frames
     ) -> float:
         print("Running FFMPEG COMMAND for vmaf")
 
@@ -104,7 +105,7 @@ class VMAF:
                 "-hide_banner",  #  -loglevel error --> need to read output!
                 "-an",
                 "-lavfi",
-                f'"[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}"',
+                f'"[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={self.subsample}"',
                 # f'"libvmaf=n_threads={threads_to_use}:n_subsample={subsample}"',
                 "-f",
                 "null",
@@ -143,7 +144,6 @@ class VMAF:
         compressed_video: Path | str,
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         threads_to_use: int = 6,
-        subsample: int = 1,
     ) -> list[float]:
         print("Running FFMPEG COMMAND for vmaf")
 
@@ -193,7 +193,7 @@ class VMAF:
                 "-hide_banner -loglevel error",
                 "-an",  # Remove audio
                 "-lavfi",
-                f'"[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path={LOG_FILE_NAME}"',
+                f'"[1:v]setpts=PTS-STARTPTS[reference];[0:v]setpts=PTS-STARTPTS[distorted];[distorted][reference]libvmaf=n_threads={threads_to_use}:n_subsample={self.subsample}:log_fmt=json:log_path={LOG_FILE_NAME}"',
                 # f'"libvmaf=n_threads={threads_to_use}:n_subsample={subsample}:log_fmt=json:log_path=log.json"',
                 "-f",
                 "null",
@@ -250,7 +250,9 @@ class ssimulacra2_cpp:
     """
 
     target_score: int
-    NAME: str = "ssimulacra2_rs"
+    subsample: int = 2  # Calculate per X frames
+
+    NAME: str = "ssimulacra2_cpp"
     RANGE: range = range(0, 100 + 1)  # NOTE this is MOSTLY true
 
     IMPROVING_DIRECTION = +1
@@ -262,7 +264,6 @@ class ssimulacra2_cpp:
         compressed_video: Path | str,  # | subprocess.CompletedProcess[bytes],
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         threads_to_use: int = 6,
-        subsample: int = 2,  # Calculate per X frames
     ) -> list[float]:
         if isinstance(compressed_video, Path):
             _ = subprocess.run(
@@ -333,20 +334,122 @@ class ssimulacra2_cpp:
         return ssimulacra2_scores
 
     # https://wiki.x266.mov/docs/metrics/SSIMULACRA2
-    def overall(
+    def summary_of_overall_video(
         self,
         video_data: videodata.RawVideoData,
         compressed_video: Path | str,
         source_start_end_frame: tuple[int | None, int | None] = (None, None),
         threads_to_use: int = 6,
-        subsample: int = 2,
     ) -> float:
         val = self.throughout_video(
             video_data,
             compressed_video,
             source_start_end_frame,
             threads_to_use,
-            subsample,
+        )
+
+        return sum(val) / len(val)
+
+
+@dataclass()
+class ssimulacra2_rs:
+    """
+    - 30 = low quality. This corresponds to the p10 worst output of mozjpeg -quality 30.
+
+    - 50 = medium quality. This corresponds to the average output of cjxl -q 40 or
+            mozjpeg -quality 40, or the p10 output of cjxl -q 50 or mozjpeg -quality 60.
+
+    - 70 = high quality. This corresponds to the average output of cjxl -q 65 or
+            mozjpeg -quality 70, p10 output of cjxl -q 75 or mozjpeg -quality 80.
+
+    - 90 = very high quality. Likely impossible to distinguish from the original when viewed
+            at 1:1 from a normal viewing distance. This corresponds to the average output
+            of mozjpeg -quality 95 or the p10 output of cjxl -q
+    """
+
+    target_score: int
+    subsample: int = 10  # Calculate per X frames
+
+    NAME: str = "ssimulacra2_rs"
+    RANGE: range = range(0, 100 + 1)  # NOTE this is MOSTLY true
+
+    IMPROVING_DIRECTION = +1
+    CERTAIN_RANGE = range(0, 100 + 1)
+
+    def throughout_video(
+        self,
+        video_data: videodata.RawVideoData,
+        compressed_video: Path | str,  # | subprocess.CompletedProcess[bytes],
+        source_start_end_frame: tuple[int | None, int | None] = (None, None),
+        threads_to_use: int = 6,
+    ) -> list[float]:
+        delete_file_list: list[Path] = []
+
+        if isinstance(compressed_video, str):
+            filename = Path(
+                f"TEMP-SSIMULACRA2_RS-FILEOUTPUT-{source_start_end_frame}-.mkv"
+            )
+            delete_file_list.append(filename)
+            _ = subprocess.run(
+                f"{compressed_video} | ffmpeg -i - -c copy -y {filename}",
+                shell=True,
+                check=True,
+            )
+            compressed_video = filename
+
+        input_video_name = video_data.input_filename
+        if isinstance(video_data.input_filename, ffmpeg.accurate_seek):
+            filename = Path(
+                f"TEMP-SSIMULACRA2_RS-FILEINPUT-{source_start_end_frame}-.mkv"
+            )
+            delete_file_list.append(filename)
+            _ = subprocess.run(
+                f"{video_data.input_filename.command(*source_start_end_frame)} | ffmpeg -i - -y {filename}",
+                shell=True,
+                check=True,
+            )
+            input_video_name = filename
+
+        output = subprocess.run(
+            " ".join(
+                [
+                    f'ssimulacra2_rs video "{input_video_name}" "{compressed_video}"',
+                    "-v",  # per frame printing
+                    f"-f {threads_to_use}",  # how many threads
+                    f"-i {self.subsample}",
+                ],
+            ),
+            shell=True,
+            check=True,
+            capture_output=True,
+        )
+
+        ssimulacra2_scores = [
+            max(float(x.split(":")[1].strip()), 0)
+            for x in str(output.stdout).splitlines()
+            if x.startswith("Frame") and not x.endswith("skip")
+        ]
+
+        for file in delete_file_list:
+            try:
+                os.remove(file)
+            except FileNotFoundError:
+                print(f"unable to delete {file}")
+        return ssimulacra2_scores
+
+    # https://wiki.x266.mov/docs/metrics/SSIMULACRA2
+    def summary_of_overall_video(
+        self,
+        video_data: videodata.RawVideoData,
+        compressed_video: Path | str,
+        source_start_end_frame: tuple[int | None, int | None] = (None, None),
+        threads_to_use: int = 6,
+    ) -> float:
+        val = self.throughout_video(
+            video_data,
+            compressed_video,
+            source_start_end_frame,
+            threads_to_use,
         )
 
         return sum(val) / len(val)
