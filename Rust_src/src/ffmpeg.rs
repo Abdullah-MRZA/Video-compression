@@ -1,6 +1,7 @@
 use crate::heuristics;
 use crate::scenes;
 use ordered_float::NotNan;
+use std::cmp::min;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fs;
@@ -73,7 +74,7 @@ impl Encoding {
     /// this renders the video, then gets a heuristic measurement immediately afterwards
     pub fn render_video(
         &self,
-        output_file: String,
+        output_file: &str,
         frame_start: Option<u64>,
         frame_end: Option<u64>,
         crf_value: u8,
@@ -175,13 +176,12 @@ impl Encoding {
     }
 
     /// Finds the optimal CRF value for a target heuristic
+    /// Does not render the video itself, uses frames (test)
     pub fn find_optimal_crf(
         &self,
-        // codec: Codecs,
-        // heuristic: heuristics::Heuristics,
-        scene: Option<&scenes::Scenes>,
+        scene: &scenes::Scenes,
         target_value: f64,
-    ) -> (u8, HashMap<u8, f64>, Vec<(u8, f64)>, String) {
+    ) -> (u8, HashMap<u8, f64>, Vec<(u8, f64)>) {
         let mut crf_heuristic_cache: HashMap<u8, f64> = HashMap::new();
         let mut crf_heuristic_cache_order_store: Vec<(u8, f64)> = vec![];
         let (mut minimum, mut maximum) = self.codec.crf_range();
@@ -192,29 +192,25 @@ impl Encoding {
                 .replace("\"", "_")
         };
 
-        // while crf_heuristic_cache.get(let current_crf = (maximum - minimum) / 2).is_none() {
         loop {
             let current_crf = (maximum + minimum) / 2;
             if crf_heuristic_cache.get(&current_crf).is_some() {
                 break;
             }
 
-            let heuristic_throughout = match scene {
-                Some(ref scene_inner) => self.render_video(
-                    tempfilename(current_crf),
-                    Some(scene_inner.frame_start),
-                    Some(scene_inner.frame_end),
-                    current_crf,
-                ),
-                None => self.render_video(tempfilename(current_crf), None, None, current_crf),
-            };
+            let heuristic_throughout = self.render_video(
+                &tempfilename(current_crf),
+                Some(scene.frame_start),
+                Some(min(scene.frame_end, scene.frame_start + 2)), // TODO: temporary
+                current_crf,
+            );
 
             let average_heuristic: f64 =
                 heuristic_throughout.iter().sum::<f64>() / heuristic_throughout.len() as f64;
 
             crf_heuristic_cache.insert(current_crf, average_heuristic);
             crf_heuristic_cache_order_store.push((current_crf, average_heuristic));
-            dbg!(format!("{current_crf} = {average_heuristic}"));
+            // dbg!(format!("{current_crf} = {average_heuristic}"));
 
             // TODO: Add direction of movement
             match average_heuristic.total_cmp(&target_value) {
@@ -243,7 +239,6 @@ impl Encoding {
             *best_crf.0,
             crf_heuristic_cache.clone(),
             crf_heuristic_cache_order_store.clone(),
-            tempfilename(*best_crf.0),
         );
     }
 }

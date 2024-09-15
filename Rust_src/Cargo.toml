@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+indicatif = { version = "0.17.8", features = ["rayon"] }
 ordered-float = "4.2.2"
 plotters = "0.3.6"
 rayon = "1.10.0"
