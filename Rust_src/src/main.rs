@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use std::{collections::HashMap, fs};
 
 fn main() {
-    let video = ffmpeg::InputVideo::new("small.mp4", "");
+    let video = ffmpeg::InputVideo::new("verysmall.mkv", "");
     let scenes = scenes::Scenes::py_scenedetect(&video, 1);
 
     let render_data = ffmpeg::Encoding {
@@ -20,7 +20,7 @@ fn main() {
     let all_heuristics = scenes
         .par_iter()
         .progress()
-        .map(|x| render_data.find_optimal_crf(x, 70.0))
+        .map(|x| render_data.find_optimal_crf(x, 90.0))
         .collect::<Vec<(u8, HashMap<u8, f64>, Vec<(u8, f64)>)>>();
 
     let final_render_filelist = all_heuristics
@@ -32,18 +32,22 @@ fn main() {
             let tempfile = format!("part-{}.mkv", x.0);
             let scene = x.1 .1;
             let crf = x.1 .0 .0;
-            render_data.render_video(
+            let heuristic = render_data.render_video(
                 &tempfile,
                 Some(scene.frame_start),
                 Some(scene.frame_end),
                 crf,
             );
-            tempfile
+            let average = heuristic.iter().sum::<f64>() / heuristic.len() as f64;
+            (tempfile, average)
         })
-        .collect::<Vec<String>>();
+        .collect::<Vec<(String, f64)>>();
 
-    ffmpeg::concatenate_videos(final_render_filelist, "combined_final.mkv")
-        .expect("Concatenation of videos failed");
+    ffmpeg::concatenate_videos(
+        final_render_filelist.iter().map(|x| x.0.clone()).collect(),
+        "combined_final.mkv",
+    )
+    .expect("Concatenation of videos failed");
 
     // let heuristic = render_data.render_video(String::from("output.mkv"), None, None, 30);
     println!("{:#?}", all_heuristics);
